@@ -1,14 +1,34 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/TravelMaps.github.io/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>travelmaps</title>
-    <script type="module" crossorigin src="/TravelMaps.github.io/assets/index-YRyxts4I.js"></script>
-    <link rel="stylesheet" crossorigin href="/TravelMaps.github.io/assets/index-1ZLC9eaD.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/TravelMaps.github.io/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/TravelMaps.github.io/icons/icon-192.png" />
+  <link rel="manifest" href="/TravelMaps.github.io/manifest.json" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#3ea6ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TravelMaps" />
+  <meta name="description" content="Personal travel tracker to save and remember your favorite places" />
+  <title>TravelMaps — Personal Tracker</title>
+  <script type="module" crossorigin src="/TravelMaps.github.io/assets/index-9xOoJn6B.js"></script>
+  <link rel="stylesheet" crossorigin href="/TravelMaps.github.io/assets/index-D-Q6G5me.css">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/TravelMaps.github.io/sw.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+</body>
+
 </html>
