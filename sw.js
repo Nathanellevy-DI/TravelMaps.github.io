@@ -1,4 +1,4 @@
-const CACHE_NAME = 'travelmaps-v1';
+const CACHE_NAME = 'travelmaps-v2';
 const urlsToCache = [
     '/TravelMaps.github.io/',
     '/TravelMaps.github.io/index.html'
