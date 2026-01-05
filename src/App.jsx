@@ -7,7 +7,7 @@ import MapComponent from './components/Map/MapComponent';
 import PlaceDetailsModal from './components/Modals/PlaceDetailsModal';
 import LoginPage from './components/Auth/LoginPage';
 import { useDialog } from './hooks/useDialog.jsx';
-import { Menu, MapPin, Download, Trash2, LogOut } from 'lucide-react';
+import { Menu, MapPin, LogOut } from 'lucide-react';
 import './index.css';
 
 
@@ -159,14 +159,6 @@ function AppContent({ user, onLogout }) {
           <button className="mobile-btn" onClick={handleLocationClick}>
             <MapPin size={20} />
             <span className="mobile-btn-label">My Location</span>
-          </button>
-          <button className="mobile-btn" onClick={() => document.getElementById('exportBtn')?.click()}>
-            <Download size={20} />
-            <span className="mobile-btn-label">Export</span>
-          </button>
-          <button className="mobile-btn" onClick={() => document.getElementById('clearAllBtn')?.click()}>
-            <Trash2 size={20} />
-            <span className="mobile-btn-label">Clear</span>
           </button>
           <button className="mobile-btn" onClick={onLogout}>
             <LogOut size={20} />

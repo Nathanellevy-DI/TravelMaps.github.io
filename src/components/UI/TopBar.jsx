@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, MapPin, Download, Trash2, Menu, LogOut, Sun, Moon } from 'lucide-react';
+import { Search, MapPin, Menu, LogOut, Sun, Moon } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 
 const GEOAPIFY_KEY = '8dce2a1641ca4c0bac83f3feafc51bbf';
@@ -167,12 +167,7 @@ export default function TopBar({ onMenuClick, onLocationClick, map, onSearchResu
                 <button id="locationBtn" className="icon-btn" onClick={onLocationClick} aria-label="Go to my location">
                     <MapPin size={20} />
                 </button>
-                <button id="exportBtn" className="secondary" onClick={handleExport} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <Download size={14} /> Export
-                </button>
-                <button id="clearAllBtn" className="danger" onClick={handleClearAll} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <Trash2 size={14} /> Clear All
-                </button>
+
             </div>
         </header>
     );
