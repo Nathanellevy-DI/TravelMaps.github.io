@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { X, Camera, MapPin, Trash2, Filter, Sun, Moon, Download, Upload } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import { exportBackup, importBackup } from '../../utils/backup';
