@@ -1,5 +1,5 @@
-const CACHE_NAME = 'travelmaps-v3';
-const APP_VERSION = 1; // Increment when adding new features
+const CACHE_NAME = 'travelmaps-v4';
+const APP_VERSION = 2; // Increment when adding new features - TEST
 const urlsToCache = [
     '/TravelMaps.github.io/',
     '/TravelMaps.github.io/index.html'
