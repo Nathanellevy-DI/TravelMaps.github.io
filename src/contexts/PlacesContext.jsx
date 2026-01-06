@@ -209,6 +209,10 @@ export function PlacesProvider({ children, user }) {
         }
     };
 
+    const restoreData = (places) => {
+        setSavedPlaces(places);
+    };
+
     const getPlace = (id) => savedPlaces.find(p => p.id === id);
 
     return (
@@ -228,7 +232,8 @@ export function PlacesProvider({ children, user }) {
                 creationSettings,
                 setCategory, // Exposed instead of setCreationSettings key
                 submitRequest,
-                approvePlace
+                approvePlace,
+                restoreData
             }}>
                 {children}
             </PlacesContext.Provider>

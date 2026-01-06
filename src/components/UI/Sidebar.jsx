@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { X, Camera, MapPin, Trash2, Filter, Sun, Moon } from 'lucide-react';
+import { X, Camera, MapPin, Trash2, Filter, Sun, Moon, Download, Upload } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
+import { exportBackup, importBackup } from '../../utils/backup';
 
-export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme }) {
-    const { savedPlaces, removePlace, clearAll, categories } = usePlaces();
+export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user }) {
+    const { savedPlaces, removePlace, clearAll, categories, restoreData } = usePlaces();
     const [filterCategory, setFilterCategory] = useState('All');
 
     const handleGoTo = (place) => {
@@ -14,6 +14,37 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme }) {
 
     const handleOpenDetails = (placeId) => {
         document.dispatchEvent(new CustomEvent('openDetails', { detail: placeId }));
+    };
+
+    const handleBackup = async () => {
+        try {
+            await exportBackup(savedPlaces, user?.name || user?.email || 'Guest');
+        } catch (error) {
+            alert('Export failed: ' + error.message);
+        }
+    };
+
+    const handleRestoreClick = () => {
+        document.getElementById('restore-input').click();
+    };
+
+    const handleRestoreFile = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!window.confirm('This will replace your current places with the data from the backup. Continue?')) {
+            e.target.value = '';
+            return;
+        }
+
+        const result = await importBackup(file);
+        if (result.success) {
+            restoreData(result.places);
+            alert('Backup restored successfully!');
+        } else {
+            alert('Restore failed: ' + result.error);
+        }
+        e.target.value = '';
     };
 
     const filteredPlaces = filterCategory === 'All'
@@ -96,14 +127,35 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme }) {
                         ))
                     )}
                 </div>
-                <div className="sidebar-footer">
+                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                     <button
                         className="secondary"
                         onClick={toggleTheme}
-                        style={{ flex: 1, display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
                     >
-                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                        {theme === 'dark' ? 'Light' : 'Dark'}
+                    </button>
+                    <button
+                        className="secondary"
+                        onClick={handleBackup}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
+                    >
+                        <Download size={14} /> Backup
+                    </button>
+                    <button
+                        className="secondary"
+                        onClick={handleRestoreClick}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
+                    >
+                        <Upload size={14} /> Restore
+                        <input
+                            id="restore-input"
+                            type="file"
+                            accept=".zip"
+                            onChange={handleRestoreFile}
+                            style={{ display: 'none' }}
+                        />
                     </button>
                     <button
                         className="danger"
@@ -112,9 +164,9 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme }) {
                                 clearAll();
                             }
                         }}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
                     >
-                        <Trash2 size={16} /> Clear All
+                        <Trash2 size={14} /> Clear All
                     </button>
                 </div>
             </aside >
