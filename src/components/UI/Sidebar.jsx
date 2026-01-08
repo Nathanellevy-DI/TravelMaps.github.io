@@ -128,26 +128,26 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                         ))
                     )}
                 </div>
-                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    <button
-                        className="secondary"
-                        onClick={toggleTheme}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
-                    >
-                        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                        {theme === 'dark' ? 'Light' : 'Dark'}
-                    </button>
+                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto' }}>
                     <button
                         className="secondary"
                         onClick={handleBackup}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
                     >
                         <Download size={14} /> Backup
                     </button>
                     <button
                         className="secondary"
+                        onClick={toggleTheme}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
+                    >
+                        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    </button>
+                    <button
+                        className="secondary"
                         onClick={handleRestoreClick}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
                     >
                         <Upload size={14} /> Restore
                         <input
@@ -165,7 +165,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                 clearAll();
                             }
                         }}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '8px', fontSize: '13px' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
                     >
                         <Trash2 size={14} /> Clear All
                     </button>

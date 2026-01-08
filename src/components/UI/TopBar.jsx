@@ -147,13 +147,6 @@ export default function TopBar({ onMenuClick, onLocationClick, map, onSearchResu
 
             <div className="desktop-buttons">
                 <button
-                    className="icon-btn"
-                    onClick={toggleTheme}
-                    title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-                >
-                    {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </button>
-                <button
                     className="secondary"
                     onClick={onLogout}
                     style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
