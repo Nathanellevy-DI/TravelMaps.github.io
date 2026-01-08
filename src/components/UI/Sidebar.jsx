@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { X, Camera, MapPin, Trash2, Filter, Sun, Moon, Download, Upload } from 'lucide-react';
+import { X, Camera, MapPin, Trash2, Filter, Sun, Moon, Download, Upload, Users, Share2 } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import { exportBackup, importBackup } from '../../utils/backup';
+import FriendsModal from '../Modals/FriendsModal';
+import ShareModal from '../Modals/ShareModal';
 
 export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user }) {
     const { savedPlaces, removePlace, clearAll, categories, restoreData } = usePlaces();
     const [filterCategory, setFilterCategory] = useState('All');
+    const [showFriendsModal, setShowFriendsModal] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [shareType, setShareType] = useState('pin');
+    const [shareItem, setShareItem] = useState(null);
 
     const handleGoTo = (place) => {
         if (map) {
@@ -46,6 +52,16 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
             alert('Restore failed: ' + result.error);
         }
         e.target.value = '';
+    };
+
+    const handleSharePin = (place) => {
+        if (!place.id) {
+            alert('Cannot share this place (missing ID)');
+            return;
+        }
+        setShareType('pin');
+        setShareItem(place); // Pass full place object for sync
+        setShowShareModal(true);
     };
 
     const filteredPlaces = filterCategory === 'All'
@@ -111,11 +127,19 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                     </div>
                                     <div className="saved-sub">
                                         {place.formatted || `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`} • {place.memories.length} memories
+                                        {place.isShared && (
+                                            <div style={{ color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <Users size={10} /> Shared by {place.sharedBy?.username || 'Friend'}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="saved-actions">
                                     <button className="small-btn" title="Details" onClick={() => handleOpenDetails(place.id)}>
                                         <Camera size={14} />
+                                    </button>
+                                    <button className="small-btn" title="Share" onClick={() => handleSharePin(place)}>
+                                        <Share2 size={14} />
                                     </button>
                                     <button className="small-btn" title="Go" onClick={() => handleGoTo(place)}>
                                         <MapPin size={14} />
@@ -128,7 +152,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                         ))
                     )}
                 </div>
-                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto' }}>
+                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto' }}>
                     <button
                         className="secondary"
                         onClick={handleBackup}
@@ -142,7 +166,14 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                         style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
                     >
                         {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                        {theme === 'dark' ? 'Light' : 'Dark'}
+                    </button>
+                    <button
+                        className="secondary"
+                        onClick={() => setShowFriendsModal(true)}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
+                    >
+                        <Users size={14} /> Friends
                     </button>
                     <button
                         className="secondary"
@@ -165,12 +196,23 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                 clearAll();
                             }
                         }}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
+                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px', gridColumn: 'span 2' }}
                     >
                         <Trash2 size={14} /> Clear All
                     </button>
                 </div>
             </aside >
+            <FriendsModal
+                isOpen={showFriendsModal}
+                onClose={() => setShowFriendsModal(false)}
+                user={user}
+            />
+            <ShareModal
+                isOpen={showShareModal}
+                onClose={() => setShowShareModal(false)}
+                type={shareType}
+                item={shareItem}
+            />
         </>
     );
 }

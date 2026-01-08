@@ -193,7 +193,7 @@ function AuthenticatedApp() {
   const { user } = useAuth();
 
   return (
-    <PlacesProvider user={typeof user === 'object' ? user.id : user} key={typeof user === 'object' ? user.id : user}>
+    <PlacesProvider user={user} key={typeof user === 'object' ? user.id : user}>
       <AppContent />
     </PlacesProvider>
   );

@@ -80,6 +80,11 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                                     <strong>{place.name}</strong>
                                     <div className="result-sub">{place.category || 'Place'}</div>
                                     <div className="result-sub">{place.formatted}</div>
+                                    {place.isShared && (
+                                        <div className="result-sub" style={{ color: 'var(--accent)', fontWeight: 500 }}>
+                                            Shared by {place.sharedBy?.username || 'Friend'}
+                                        </div>
+                                    )}
 
                                     {isShabbat ? (
                                         <button

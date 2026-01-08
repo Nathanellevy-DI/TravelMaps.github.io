@@ -63,8 +63,12 @@ export const logout = () => {
  */
 export const getCurrentUser = () => {
     try {
+        const token = localStorage.getItem('travelmaps:token');
         const userJson = localStorage.getItem('travelmaps:user');
-        return userJson ? JSON.parse(userJson) : null;
+
+        if (!token || !userJson) return null;
+
+        return JSON.parse(userJson);
     } catch {
         return null;
     }

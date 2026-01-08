@@ -1,6 +1,8 @@
 import { createContext, useState, useEffect, useContext, useRef, Fragment } from 'react';
 import { getUserData, saveUserData } from '../utils/db';
+
 import { useDialog } from '../hooks/useDialog.jsx';
+import * as shareService from '../services/shareService';
 
 const PlacesContext = createContext();
 
@@ -50,9 +52,14 @@ export function PlacesProvider({ children, user }) {
 
         const loadData = async () => {
             try {
-                const userData = await getUserData(user);
+                // 1. Load local data
+                let localPlaces = [];
+                // Extract key for DB (user is now object, but DB expects string ID)
+                const dbKey = (typeof user === 'object' && user !== null) ? user.id : user;
+
+                const userData = await getUserData(dbKey);
                 if (userData) {
-                    setSavedPlaces(userData.savedPlaces.map(p => ({
+                    localPlaces = userData.savedPlaces.map(p => ({
                         ...p,
                         memories: p.memories || [],
                         category: p.category || 'Default',
@@ -61,15 +68,53 @@ export function PlacesProvider({ children, user }) {
                         approvalStatus: p.approvalStatus || (
                             (p.category === 'Shabbat Dinners' || p.category === 'Lone Soldier Shabbat Dinners') ? 'none' : 'approved'
                         )
-                    })));
+                    }));
                     setCategories(userData.categories || DEFAULT_CATEGORIES);
                 } else {
-                    setSavedPlaces([]);
                     setCategories(DEFAULT_CATEGORIES);
                 }
+
+                // 2. Fetch shared items if user is logged in
+                let sharedPlaces = [];
+                if (user) { // Rely on api.js to handle token from localStorage
+                    try {
+                        const sharedResult = await shareService.getSharedItems();
+                        sharedPlaces = (sharedResult.pins || []).map(shareItem => ({
+                            id: shareItem.pin.id,
+                            name: shareItem.pin.title,
+                            formatted: shareItem.pin.address,
+                            lat: shareItem.pin.latitude,
+                            lon: shareItem.pin.longitude,
+                            notes: shareItem.pin.notes,
+                            category: 'Shared',
+                            color: '#e056fd',
+                            isShared: true,
+                            sharedBy: shareItem.fromUser,
+                            memories: []
+                        }));
+
+                        // Add 'Shared' to categories if not present
+                        setCategories(prev => {
+                            if (!prev.includes('Shared')) return [...prev, 'Shared'];
+                            return prev;
+                        });
+                    } catch (err) {
+                        console.error('Failed to fetch shared items:', err);
+                    }
+                }
+
+                // 3. Merge (avoid duplicates if any)
+                // We prioritize shared places or local? 
+                // Let's just append. IDs should be different (UUIDs vs potentially others, but likely UUIDs too).
+                // If a shared place was saved locally before, we might have duplicates. 
+                // Let's filter localPlaces to ensure no ID conflict with sharedPlaces.
+                const sharedIds = new Set(sharedPlaces.map(p => p.id));
+                const uniqueLocal = localPlaces.filter(p => !sharedIds.has(p.id));
+
+                setSavedPlaces([...uniqueLocal, ...sharedPlaces]);
                 setIsLoaded(true);
             } catch (e) {
-                console.error('Error loading data from IndexedDB:', e);
+                console.error('Error loading data:', e);
                 setSavedPlaces([]);
                 setCategories(DEFAULT_CATEGORIES);
                 setIsLoaded(true);
@@ -87,7 +132,10 @@ export function PlacesProvider({ children, user }) {
 
         const saveData = async () => {
             try {
-                await saveUserData(user, { savedPlaces, categories });
+                // Filter out shared items before saving to local database
+                const localSavedPlaces = savedPlaces.filter(p => !p.isShared);
+                const dbKey = (typeof user === 'object' && user !== null) ? user.id : user;
+                await saveUserData(dbKey, { savedPlaces: localSavedPlaces, categories });
             } catch (e) {
                 console.error('Error saving data to IndexedDB:', e);
             }
