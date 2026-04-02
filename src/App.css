@@ -1,0 +1,18 @@
+/**
+ * App.css — Global App Reset
+ *
+ * This file provides a minimal CSS reset for the root element.
+ * The main app styles (layout, theming, components) are in index.css.
+ *
+ * Note: The Vite boilerplate styles that were originally here
+ * (max-width, padding, text-align) conflicted with the full-screen
+ * map layout, so they've been replaced with this simple reset.
+ */
+
+/* Reset the root container to fill the full viewport */
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
