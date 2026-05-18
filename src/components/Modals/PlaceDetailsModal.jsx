@@ -10,11 +10,13 @@
  * Memories can be text notes, uploaded images, or file attachments.
  * Files are stored as Base64 data URIs in IndexedDB.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Lock, Clock, FileText, MapPin, Upload, Edit2 } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import ImageLightbox from '../UI/ImageLightbox';
 import { useDialog } from '../../hooks/useDialog.jsx';
+import SecureImageUpload from '../Media/SecureImageUpload';
+import { getMediaUrl, fetchApi } from '../../services/apiClient';
 
 /**
  * @param {Object}   props
@@ -23,7 +25,7 @@ import { useDialog } from '../../hooks/useDialog.jsx';
  */
 export default function PlaceDetailsModal({ placeId, onClose }) {
     // Pull place management functions from context
-    const { getPlace, submitRequest, approvePlace, addMemory, removeMemory, categories, addCategory, updatePlaceCategory } = usePlaces();
+    const { getPlace, submitRequest, approvePlace, categories, addCategory, updatePlaceCategory, refreshPlaces } = usePlaces();
     const place = getPlace(placeId);
     // DialogComponent renders the custom confirm/alert dialog when triggered
     const { DialogComponent } = useDialog();
@@ -34,12 +36,34 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
         militaryId: '', hasAllergies: false, allergies: ''
     });
 
-    // Memory upload state
-    const [noteText, setNoteText] = useState('');
-    const [uploadFile, setUploadFile] = useState(null);
-
     // Lightbox state
     const [lightboxImage, setLightboxImage] = useState(null);
+
+    // Media blob URLs caching to prevent re-fetching on every render
+    const [mediaUrls, setMediaUrls] = useState({});
+
+    // Fetch secure images
+    useEffect(() => {
+        if (!place || !place.media) return;
+        
+        place.media.forEach(async (m) => {
+            if (!mediaUrls[m.id]) {
+                try {
+                    const token = localStorage.getItem('travelmaps_token');
+                    const res = await fetch(getMediaUrl(m.id), {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        setMediaUrls(prev => ({ ...prev, [m.id]: URL.createObjectURL(blob) }));
+                    }
+                } catch (e) {
+                    console.error('Failed to load secure media', e);
+                }
+            }
+        });
+    }, [place?.media]);
+
 
     // Edit Category state
     const [isEditingCategory, setIsEditingCategory] = useState(false);
@@ -64,55 +88,7 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
         setViewState('details'); // Return to details view — it will now show 'pending' state
     };
 
-    /**
-     * Converts a File object to a Base64 data URI string.
-     * Used to store uploaded images/files directly in IndexedDB.
-     */
-    const fileToBase64 = (file) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-    };
-
-    /**
-     * Handles the "Add Memory" form submission.
-     * Creates a memory object with optional text and/or file attachment,
-     * then saves it to the place's memories array via PlacesContext.
-     */
-    const handleAddMemory = async (e) => {
-        e.preventDefault();
-        if (!noteText && !uploadFile) return; // Require at least a note or a file
-
-        let content = noteText;
-        let type = 'note'; // Default type is a text note
-
-        // If a file was uploaded, convert it to Base64 and determine its type
-        if (uploadFile) {
-            type = uploadFile.type.startsWith('image') ? 'image' : 'file';
-            try {
-                content = await fileToBase64(uploadFile);
-            } catch (err) {
-                console.error('File conversion failed', err);
-                return;
-            }
-        }
-
-        const newMemory = {
-            id: Date.now(),          // Unique timestamp-based ID
-            type: type,              // 'note', 'image', or 'file'
-            content: content,        // Text string or Base64 data URI
-            text: noteText,          // Original text note (kept even with file)
-            fileName: uploadFile ? uploadFile.name : null,
-            date: new Date().toLocaleDateString()
-        };
-
-        addMemory(placeId, newMemory);
-        setNoteText('');
-        setUploadFile(null);
-    };
+    // Legacy memory functions removed for strict schema constraint
 
     /** Handles inline category dropdown changes, including creating new categories */
     const handleCategoryChange = (e) => {
@@ -250,39 +226,29 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
                                 <span>{place.formatted || 'No address details available.'}</span>
                             </div>
 
-                            {/* Memories Grid */}
+                            {/* Secure Media Grid */}
                             <div style={{ flex: 1, overflowY: 'auto' }}>
-                                <h4 style={{ marginBottom: '12px' }}>📸 Photos & Memories</h4>
-                                {place.memories.length === 0 ? (
-                                    <div className="empty-state">No memories added yet.</div>
+                                <h4 style={{ marginBottom: '12px' }}>📸 Secure Photos</h4>
+                                {!place.media || place.media.length === 0 ? (
+                                    <div className="empty-state">No photos uploaded yet.</div>
                                 ) : (
                                     <div className="memories-grid">
-                                        {place.memories.map(mem => (
-                                            <div key={mem.id} className={`memory-card ${mem.type === 'note' ? 'pure-note' : ''}`}>
-                                                <div className="memory-date">{mem.date}</div>
-                                                <button className="delete-mem-btn" onClick={(e) => { e.stopPropagation(); removeMemory(placeId, mem.id); }}>
-                                                    <X size={14} />
-                                                </button>
-
-                                                {mem.type === 'image' && (
+                                        {place.media.map(m => (
+                                            <div key={m.id} className="memory-card">
+                                                <div className="memory-date" style={{textTransform: 'uppercase', fontSize: '10px', background: 'var(--accent)', color: 'white', padding: '2px 6px', borderRadius: '4px'}}>
+                                                    Tier {m.tier}
+                                                </div>
+                                                
+                                                {mediaUrls[m.id] ? (
                                                     <img
-                                                        src={mem.content}
-                                                        alt="Memory"
-                                                        onClick={() => setLightboxImage(mem.content)}
-                                                        style={{ cursor: 'pointer' }}
+                                                        src={mediaUrls[m.id]}
+                                                        alt="Secure Media"
+                                                        onClick={() => setLightboxImage(mediaUrls[m.id])}
+                                                        style={{ cursor: 'pointer', width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginTop: '8px' }}
                                                     />
-                                                )}
-
-                                                {mem.type === 'file' && (
-                                                    <div className="file-preview">
-                                                        <FileText size={32} />
-                                                        <span>{mem.fileName || 'Document'}</span>
-                                                    </div>
-                                                )}
-
-                                                {mem.text && (
-                                                    <div className="memory-text-content">
-                                                        {mem.text}
+                                                ) : (
+                                                    <div style={{ width: '100%', height: '150px', background: 'var(--glass)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', marginTop: '8px' }}>
+                                                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Decrypting...</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -291,27 +257,8 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
                                 )}
                             </div>
 
-                            {/* Add Memory Form */}
-                            <form onSubmit={handleAddMemory} className="add-memory-form" style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
-                                <h4 style={{ marginBottom: '10px' }}>Add New Memory</h4>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Write a note..."
-                                        value={noteText}
-                                        onChange={e => setNoteText(e.target.value)}
-                                        style={{ flex: 1 }}
-                                    />
-                                    <label className="icon-btn" style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)' }}>
-                                        <Upload size={18} />
-                                        <input type="file" hidden onChange={e => setUploadFile(e.target.files[0])} accept="image/*,.pdf,.doc" />
-                                    </label>
-                                    <button type="submit" className="primary" disabled={!noteText && !uploadFile}>
-                                        Add
-                                    </button>
-                                </div>
-                                {uploadFile && <div className="file-indicator">Selected: {uploadFile.name}</div>}
-                            </form>
+                            {/* Secure Upload Form */}
+                            <SecureImageUpload placeId={placeId} onUploadSuccess={refreshPlaces} />
                         </>
                     )}
 

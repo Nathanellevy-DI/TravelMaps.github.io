@@ -4,7 +4,7 @@
 
 import { createContext, useState, useEffect, useContext, useRef, useMemo, Fragment } from 'react';
 import { useDialog } from '../hooks/useDialog.jsx';
-import { supabase } from '../services/supabaseClient';
+import { fetchApi } from '../services/apiClient';
 import { useAuth } from './AuthContext';
 import { useSocial } from './SocialContext';
 
@@ -60,24 +60,8 @@ export function PlacesProvider({ children, user }) {
             // 1. our own places
             // 2. public places
             // 3. friends' places that are shared with friends
-            const { data, error } = await supabase
-                .from('places')
-                .select('*, profile:profiles!user_id(display_name, email)')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            
-            // Format places to match expectations about 'sharedBy'
-            const formattedPlaces = (data || []).map(p => {
-                const isShared = p.user_id !== user.id;
-                return {
-                    ...p,
-                    isShared,
-                    sharedBy: isShared ? { username: p.profile?.display_name || p.profile?.email } : null
-                };
-            });
-            
-            setSavedPlaces(formattedPlaces);
+            const data = await fetchApi('/places');
+            setSavedPlaces(data);
             setIsLoaded(true);
         } catch (error) {
             console.error('Error loading places:', error);
@@ -93,12 +77,9 @@ export function PlacesProvider({ children, user }) {
             loadingRef.current = false;
         });
 
-        const subscription = supabase.channel('places_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'places' }, () => {
-                fetchPlaces();
-            }).subscribe();
-
-        return () => supabase.removeChannel(subscription);
+        // WebSockets will be handled in SocialContext for simplicity, 
+        // or we could just add socket.io here if needed.
+        // For now, SocialContext's refresh will trigger if needed, or we rely on optimistic updates.
     }, [user, friends]);
 
     const [creationSettings, setCreationSettings] = useState({
@@ -147,42 +128,39 @@ export function PlacesProvider({ children, user }) {
             approvalStatus: isShabbat ? 'none' : 'approved'
         };
 
-        const { error } = await supabase.from('places').insert(newPlace);
-        if (error) {
-            alert('Failed to save place: ' + error.message);
-        } else {
+        try {
+            await fetchApi('/places', {
+                method: 'POST',
+                body: JSON.stringify(newPlace)
+            });
             // Optimistic update
             setSavedPlaces(prev => [newPlace, ...prev]);
-            
-            // If they made it public, notify friends 
-            if (visibility === 'public') {
-                friends.forEach(f => {
-                    supabase.from('notifications').insert({
-                        user_id: f.id,
-                        actor_id: user.id,
-                        type: 'shared_pin',
-                        message: `added a public pin: ${place.name}`,
-                        target_id: placeId
-                    });
-                });
-            }
+        } catch (error) {
+            alert('Failed to save place: ' + error.message);
         }
     };
 
     const removePlace = async (id) => {
         const confirmed = await showConfirm('Delete Place', 'Delete this saved place and all its memories?', true);
         if (confirmed) {
-            const { error } = await supabase.from('places').delete().eq('id', id);
-            if (!error) {
+            try {
+                await fetchApi(`/places/${id}`, { method: 'DELETE' });
                 setSavedPlaces(prev => prev.filter(p => p.id !== id));
+            } catch (err) {
+                console.error(err);
             }
         }
     };
 
     const updateVisibility = async (placeId, newVisibility) => {
-        const { error } = await supabase.from('places').update({ visibility: newVisibility }).eq('id', placeId);
-        if (!error) {
+        try {
+            await fetchApi(`/places/${placeId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ visibility: newVisibility })
+            });
             setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, visibility: newVisibility } : p));
+        } catch (err) {
+            console.error(err);
         }
     }
 
@@ -191,9 +169,14 @@ export function PlacesProvider({ children, user }) {
         if (!place) return;
         const updatedMemories = [...place.memories, memory];
         
-        const { error } = await supabase.from('places').update({ memories: updatedMemories }).eq('id', placeId);
-        if (!error) {
+        try {
+            await fetchApi(`/places/${placeId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ memories: updatedMemories })
+            });
             setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p));
+        } catch (err) {
+            console.error(err);
         }
     };
 
@@ -204,18 +187,28 @@ export function PlacesProvider({ children, user }) {
             if (!place) return;
             const updatedMemories = place.memories.filter(m => m.id !== memoryId);
 
-            const { error } = await supabase.from('places').update({ memories: updatedMemories }).eq('id', placeId);
-            if (!error) {
+            try {
+                await fetchApi(`/places/${placeId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ memories: updatedMemories })
+                });
                 setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p));
+            } catch (err) {
+                console.error(err);
             }
         }
     };
 
     const updatePlaceCategory = async (placeId, newCategory) => {
         const newColor = getCategoryColor(newCategory);
-        const { error } = await supabase.from('places').update({ category: newCategory, color: newColor }).eq('id', placeId);
-        if (!error) {
+        try {
+            await fetchApi(`/places/${placeId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ category: newCategory, color: newColor })
+            });
             setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, category: newCategory, color: newColor } : p));
+        } catch (err) {
+            console.error(err);
         }
     };
 

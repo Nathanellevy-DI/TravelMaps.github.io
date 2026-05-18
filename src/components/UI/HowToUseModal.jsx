@@ -20,19 +20,17 @@ export default function HowToUseModal({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     return (
-        <div className="custom-dialog-overlay" style={{ zIndex: 3000 }}>
-            <div className="custom-dialog" style={{ maxWidth: '500px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }}>
-                <div className="custom-dialog-header">
-                    <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        How to Use TravelMaps
-                    </h2>
+        <div className="modal-overlay" style={{ zIndex: 3000 }} onClick={onClose}>
+            <div className="modal-content" style={{ maxWidth: '500px', width: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2>How to Use TravelMaps</h2>
                     <button className="icon-btn" onClick={onClose}>
                         <X size={20} />
                     </button>
                 </div>
 
-                <div className="custom-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
+                <div className="modal-body" style={{ padding: '24px', gap: '24px' }}>
+                    
                     <section style={sectionStyle}>
                         <div style={iconWrapperStyle}><MapPin size={20} /></div>
                         <div>
@@ -74,8 +72,8 @@ export default function HowToUseModal({ isOpen, onClose }) {
                     </section>
                 </div>
 
-                <div className="custom-dialog-footer">
-                    <button className="primary" onClick={onClose} style={{ width: '100%' }}>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)' }}>
+                    <button className="primary-btn" onClick={onClose} style={{ width: '100%', padding: '12px', borderRadius: '12px' }}>
                         Got it!
                     </button>
                 </div>
@@ -86,30 +84,32 @@ export default function HowToUseModal({ isOpen, onClose }) {
 
 const sectionStyle = {
     display: 'flex',
-    gap: '15px',
+    gap: '16px',
     alignItems: 'flex-start'
 };
 
 const iconWrapperStyle = {
-    padding: '8px',
-    borderRadius: '10px',
-    backgroundColor: 'var(--card-hover)',
-    color: '#3ea6ff',
+    padding: '10px',
+    borderRadius: '12px',
+    backgroundColor: 'rgba(92, 118, 109, 0.1)', // Muted green with opacity
+    color: 'var(--accent)', // Accent color (camel/green depending on theme context)
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0
+    flexShrink: 0,
+    border: '1px solid rgba(92, 118, 109, 0.2)'
 };
 
 const titleStyle = {
-    margin: '0 0 4px 0',
+    margin: '0 0 6px 0',
     fontSize: '16px',
-    fontWeight: '600'
+    fontWeight: '600',
+    color: 'var(--text-main)'
 };
 
 const textStyle = {
     margin: 0,
     fontSize: '14px',
     color: 'var(--text-sub)',
-    lineHeight: '1.5'
+    lineHeight: '1.6'
 };

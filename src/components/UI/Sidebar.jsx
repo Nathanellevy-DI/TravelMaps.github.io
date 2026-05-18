@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { X, Camera, MapPin, Trash2, Filter, Sun, Moon, Download, Upload, Users, Share2 } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import { exportBackup, importBackup } from '../../utils/backup';
-import FriendsModal from '../Modals/FriendsModal';
+import FriendsContent from './FriendsContent';
 import ShareModal from '../Modals/ShareModal';
 
 /**
@@ -31,8 +31,8 @@ import ShareModal from '../Modals/ShareModal';
  */
 export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user }) {
     const { savedPlaces, removePlace, clearAll, categories, restoreData } = usePlaces();
+    const [activeSidebarTab, setActiveSidebarTab] = useState('places');
     const [filterCategory, setFilterCategory] = useState('All');
-    const [showFriendsModal, setShowFriendsModal] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [shareType, setShareType] = useState('pin');
     const [shareItem, setShareItem] = useState(null);
@@ -96,12 +96,44 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
         <>
             {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
             <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
-                <div className="sidebar-header">
-                    <h3>Saved Places</h3>
-                    <button className="icon-btn" onClick={onClose} aria-label="Close">
-                        <X size={20} />
-                    </button>
+                <div className="sidebar-header" style={{ paddingBottom: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '12px' }}>
+                        <h3 style={{ margin: 0 }}>My Hub</h3>
+                        <button className="icon-btn" onClick={onClose} aria-label="Close">
+                            <X size={20} />
+                        </button>
+                    </div>
+                    
+                    {/* Top Level Tabs */}
+                    <div style={{ display: 'flex', width: '100%' }}>
+                        <button
+                            onClick={() => setActiveSidebarTab('places')}
+                            style={{
+                                flex: 1, padding: '12px 0', background: 'transparent', border: 'none',
+                                borderBottom: activeSidebarTab === 'places' ? '2px solid var(--accent)' : '2px solid transparent',
+                                color: activeSidebarTab === 'places' ? 'var(--accent)' : 'var(--muted)',
+                                fontWeight: 600, cursor: 'pointer'
+                            }}
+                        >
+                            Places
+                        </button>
+                        <button
+                            onClick={() => setActiveSidebarTab('friends')}
+                            style={{
+                                flex: 1, padding: '12px 0', background: 'transparent', border: 'none',
+                                borderBottom: activeSidebarTab === 'friends' ? '2px solid var(--accent)' : '2px solid transparent',
+                                color: activeSidebarTab === 'friends' ? 'var(--accent)' : 'var(--muted)',
+                                fontWeight: 600, cursor: 'pointer'
+                            }}
+                        >
+                            Friends
+                        </button>
+                    </div>
                 </div>
+
+                <div className="sidebar-scrollable-content" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                    {activeSidebarTab === 'places' ? (
+                        <>
 
                 <div className="category-filter-wrapper" style={{ padding: '0 16px 12px 16px', borderBottom: '1px solid var(--border)' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-sub)' }}>
@@ -175,8 +207,13 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                             </div>
                         ))
                     )}
+                    </div>
+                    </>
+                    ) : (
+                        <FriendsContent user={user} />
+                    )}
                 </div>
-                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto' }}>
+                <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto' }}>
                     <button
                         className="secondary"
                         onClick={handleBackup}
@@ -191,13 +228,6 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                     >
                         {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
                         {theme === 'dark' ? 'Light' : 'Dark'}
-                    </button>
-                    <button
-                        className="secondary"
-                        onClick={() => setShowFriendsModal(true)}
-                        style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
-                    >
-                        <Users size={14} /> Friends
                     </button>
                     <button
                         className="secondary"
@@ -226,11 +256,6 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                     </button>
                 </div>
             </aside >
-            <FriendsModal
-                isOpen={showFriendsModal}
-                onClose={() => setShowFriendsModal(false)}
-                user={user}
-            />
             <ShareModal
                 isOpen={showShareModal}
                 onClose={() => setShowShareModal(false)}

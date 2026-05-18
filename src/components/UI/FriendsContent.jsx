@@ -3,9 +3,10 @@
  */
 import { useState } from 'react';
 import { X, Search, UserPlus, UserMinus, Check, XCircle, Users } from 'lucide-react';
+import { fetchApi } from '../../services/apiClient';
 import { useSocial } from '../../contexts/SocialContext';
 
-export default function FriendsModal({ isOpen, onClose, user }) {
+export default function FriendsContent({ user }) {
     const { 
         friends, 
         pendingRequests, 
@@ -27,27 +28,15 @@ export default function FriendsModal({ isOpen, onClose, user }) {
         setLoadingSearch(true);
         setError('');
         
-        // Let's implement search by fetching from supabase directly in the modal for now
-        // This avoids clogging SocialContext with temporary search state
-        import('../../services/supabaseClient').then(async ({ supabase }) => {
-            try {
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('id, display_name, email')
-                    .or(`email.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
-                    .neq('id', user?.id)
-                    .limit(10);
-                
-                if (error) throw error;
-                // Filter out existing friends
-                const existingFriendIds = friends.map(f => f.id);
-                setSearchResults(data.filter(u => !existingFriendIds.includes(u.id)));
-            } catch (err) {
-                setError('Search failed. Please try again.');
-            } finally {
-                setLoadingSearch(false);
-            }
-        });
+        try {
+            const data = await fetchApi(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+            const existingFriendIds = friends.map(f => f.id);
+            setSearchResults(data.filter(u => !existingFriendIds.includes(u.id) && u.id !== user?.id));
+        } catch (err) {
+            setError('Search failed. Please try again.');
+        } finally {
+            setLoadingSearch(false);
+        }
     };
 
     const handleSendRequest = async (emailOrName) => {
@@ -61,20 +50,11 @@ export default function FriendsModal({ isOpen, onClose, user }) {
         }
     };
 
-    if (!isOpen) return null;
-
     const incomingRequests = pendingRequests.filter(req => req.user_id_2 === user?.id || req.action_user_id !== user?.id);
     const outgoingRequests = pendingRequests.filter(req => req.action_user_id === user?.id);
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-                <div className="modal-header">
-                    <h3><Users size={20} /> Friends</h3>
-                    <button className="icon-btn" onClick={onClose} aria-label="Close">
-                        <X size={20} />
-                    </button>
-                </div>
+        <div className="friends-content" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 22px' }}>
@@ -256,7 +236,6 @@ export default function FriendsModal({ isOpen, onClose, user }) {
                         </div>
                     )}
                 </div>
-            </div>
         </div>
     );
 }

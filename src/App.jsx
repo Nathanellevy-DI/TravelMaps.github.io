@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { isSupabaseConfigured } from './services/supabaseClient';
+
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PlacesProvider, usePlaces } from './contexts/PlacesContext';
 import { SocialProvider } from './contexts/SocialContext';
@@ -299,36 +299,7 @@ function AppRouter() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
 
-  // Show a setup splash screen if Supabase is not configured
-  if (!isSupabaseConfigured) {
-    return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg)',
-        color: 'var(--text-main)',
-        padding: '20px',
-        textAlign: 'center'
-      }}>
-        <div style={{ background: 'var(--input-bg)', padding: '40px', borderRadius: '16px', border: '1px solid var(--accent)', maxWidth: '500px' }}>
-          <h1 style={{ marginBottom: '16px', color: 'var(--accent)' }}>Setup Required</h1>
-          <p style={{ marginBottom: '16px', lineHeight: '1.5' }}>
-            Environment variables are missing! To fix this white screen issue, go to your Vercel Dashboard, select this project, and go to <strong>Settings &gt; Environment Variables</strong>.
-          </p>
-          <div style={{ textAlign: 'left', background: 'rgba(0,0,0,0.5)', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
-            <p style={{ margin: '0 0 8px 0' }}><code>VITE_SUPABASE_URL</code></p>
-            <p style={{ margin: 0 }}><code>VITE_SUPABASE_ANON_KEY</code></p>
-          </div>
-          <p style={{ fontSize: '14px', color: 'var(--muted)' }}>
-            After adding these exact keys from your Supabase project, redeploy the app on Vercel.
-          </p>
-        </div>
-      </div>
-    );
-  }
+
 
   // Debug logging — can be removed in production
   console.log('App State:', { user, isAuthenticated, version: '2.0' });

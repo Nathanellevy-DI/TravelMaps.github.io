@@ -44,16 +44,28 @@ const createCustomIcon = (color) => {
  * MapEvents — Invisible component that hooks into Leaflet's map events.
  * Captures click events on the map background and forwards them to the parent
  * handler (`onMapClick`) so a temporary pin can be placed.
+ * Also handles flying to the user's location on initial load.
  *
  * @param {Object} props
  * @param {Function} props.onMapClick — Callback receiving Leaflet's click event object
  */
 function MapEvents({ onMapClick }) {
-    useMapEvents({
+    const map = useMapEvents({
         click(e) {
             onMapClick(e);
+        },
+        locationfound(e) {
+            map.flyTo(e.latlng, map.getZoom());
         }
     });
+
+    // Request location on mount
+    import('react').then(React => {
+        React.useEffect(() => {
+            map.locate();
+        }, [map]);
+    });
+
     return null; // This component renders nothing; it only subscribes to events
 }
 

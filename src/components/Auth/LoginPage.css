@@ -27,7 +27,7 @@
 .login-bg-orb-1 {
     width: 400px;
     height: 400px;
-    background: linear-gradient(135deg, #3ea6ff, #0284c7);
+    background: linear-gradient(135deg, #5C766D, #3A4C46);
     top: -100px;
     right: -100px;
     animation: float 8s ease-in-out infinite;
@@ -36,7 +36,7 @@
 .login-bg-orb-2 {
     width: 300px;
     height: 300px;
-    background: linear-gradient(135deg, #ff9f43, #feca57);
+    background: linear-gradient(135deg, #C9996B, #A67C52);
     bottom: -50px;
     left: -50px;
     animation: float 10s ease-in-out infinite reverse;
@@ -45,7 +45,7 @@
 .login-bg-orb-3 {
     width: 200px;
     height: 200px;
-    background: linear-gradient(135deg, #a29bfe, #ff9ff3);
+    background: linear-gradient(135deg, #5C4F4A, #3B3330);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -124,28 +124,28 @@
     justify-content: center;
     width: 80px;
     height: 80px;
-    background: linear-gradient(135deg, #3ea6ff 0%, #0284c7 100%);
+    background: linear-gradient(135deg, #5C766D 0%, #3A4C46 100%);
     border-radius: 20px;
     margin-bottom: 1.5rem;
     color: white;
     box-shadow:
-        0 8px 24px rgba(62, 166, 255, 0.3),
-        0 0 0 4px rgba(62, 166, 255, 0.1);
+        0 8px 24px rgba(92, 118, 109, 0.3),
+        0 0 0 4px rgba(92, 118, 109, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .login-logo:hover {
     transform: scale(1.05) rotate(-5deg);
     box-shadow:
-        0 12px 32px rgba(62, 166, 255, 0.4),
-        0 0 0 6px rgba(62, 166, 255, 0.15);
+        0 12px 32px rgba(92, 118, 109, 0.4),
+        0 0 0 6px rgba(92, 118, 109, 0.15);
 }
 
 .login-title {
     font-size: 2rem;
     font-weight: 800;
     margin: 0 0 0.5rem;
-    background: linear-gradient(135deg, #3ea6ff 0%, #ff9f43 50%, #ff6b6b 100%);
+    background: linear-gradient(135deg, #C9996B 0%, #EDE9E6 50%, #5C766D 100%);
     background-size: 200% 200%;
     -webkit-background-clip: text;
     background-clip: text;
@@ -243,7 +243,7 @@
 }
 
 .input-group:focus-within .input-icon {
-    color: #3ea6ff;
+    color: #C9996B;
 }
 
 .login-input {
@@ -264,9 +264,9 @@
 }
 
 .login-input:focus {
-    border-color: #3ea6ff;
-    background: rgba(62, 166, 255, 0.05);
-    box-shadow: 0 0 0 3px rgba(62, 166, 255, 0.1);
+    border-color: #C9996B;
+    background: rgba(201, 153, 107, 0.05);
+    box-shadow: 0 0 0 3px rgba(201, 153, 107, 0.1);
 }
 
 .login-input:disabled {
@@ -276,7 +276,7 @@
 
 .login-btn {
     width: 100%;
-    background: linear-gradient(135deg, #3ea6ff 0%, #0284c7 100%);
+    background: linear-gradient(135deg, #5C766D 0%, #3A4C46 100%);
     color: white;
     border: none;
     padding: 1rem 1.5rem;
@@ -292,7 +292,7 @@
     gap: 0.75rem;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(62, 166, 255, 0.3);
+    box-shadow: 0 4px 16px rgba(92, 118, 109, 0.3);
     box-sizing: border-box;
 }
 
@@ -319,7 +319,7 @@
 
 .login-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(62, 166, 255, 0.4);
+    box-shadow: 0 8px 24px rgba(92, 118, 109, 0.4);
 }
 
 .login-btn:active:not(:disabled) {

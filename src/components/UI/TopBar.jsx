@@ -159,7 +159,11 @@ export default function TopBar({ onMenuClick, onLocationClick, map, onSearchResu
         <header className="topbar map-topbar">
             {/* Search bar with autocomplete dropdown */}
             <div className="search-wrapper" ref={searchRef}>
-                <form onSubmit={handleSearchSubmit} style={{ flex: 1, display: 'flex' }}>
+                <form onSubmit={handleSearchSubmit} style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Search 
+                        size={18} 
+                        style={{ position: 'absolute', left: '16px', color: 'var(--muted)', pointerEvents: 'none' }} 
+                    />
                     <input
                         id="search"
                         type="search"
@@ -167,8 +171,11 @@ export default function TopBar({ onMenuClick, onLocationClick, map, onSearchResu
                         autoComplete="off"
                         value={query}
                         onChange={handleSearchInput}
+                        style={{ paddingLeft: '44px', width: '100%' }}
                     />
-                    <button type="submit" className="search-btn" aria-label="Search">🔍</button>
+                    <button type="submit" className="icon-btn" style={{ position: 'absolute', right: '4px', height: '36px', width: '36px', border: 'none', background: 'var(--accent)', color: 'white', boxShadow: 'none' }} aria-label="Search">
+                        <Search size={16} />
+                    </button>
                 </form>
 
                 {/* Autocomplete suggestions dropdown */}
