@@ -196,6 +196,23 @@ app.put('/api/places/:id', authenticateToken, async (req, res) => {
 
 // --- Friends Routes ---
 
+app.get('/api/users/search', authenticateToken, async (req, res) => {
+    const query = req.query.q;
+    if (!query) return res.json([]);
+    
+    try {
+        const { rows } = await pool.query(
+            `SELECT id, display_name, email, avatar_url FROM users 
+             WHERE (display_name ILIKE $1 OR email ILIKE $1) AND id != $2 
+             LIMIT 10`, 
+            [`%${query}%`, req.user.id]
+        );
+        res.json(rows);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/friends', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
