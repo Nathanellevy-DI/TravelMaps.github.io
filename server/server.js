@@ -119,7 +119,16 @@ app.get('/api/places', authenticateToken, async (req, res) => {
         `;
         const { rows } = await pool.query(query, [userId, userId, userId]);
         
-        const { rows: mediaRows } = await pool.query(`SELECT id, place_id, tier, uploader_id, mime_type FROM media WHERE place_id IS NOT NULL`);
+        // Only fetch media for the places we're actually returning (not the entire table)
+        const placeIds = rows.map(r => r.id);
+        let mediaRows = [];
+        if (placeIds.length > 0) {
+            const { rows: mr } = await pool.query(
+                `SELECT id, place_id, tier, uploader_id, mime_type FROM media WHERE place_id = ANY($1)`,
+                [placeIds]
+            );
+            mediaRows = mr;
+        }
         
         const mediaByPlace = {};
         mediaRows.forEach(m => {
@@ -428,7 +437,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
 
 app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
     try {
-        await pool.query(`UPDATE notifications SET is_read = 1 WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id]);
+        await pool.query(`UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id]);
         io.to(req.user.id).emit('notification_update');
         res.json({ success: true });
     } catch (err) {

@@ -1,57 +1,59 @@
-import api from './api';
+/**
+ * Friend service for TravelMaps
+ * Handles friend search, requests, and management
+ * 
+ * Uses apiClient.js which connects to the Express backend at /api/*
+ */
+
+import { fetchApi } from './apiClient.js';
 
 /**
- * Search for users by username, email, or display name
+ * Search for users by display name or email
+ * @param {string} query - Search query
+ * @returns {Promise<object[]>} - Array of matching users
  */
 export async function searchUsers(query) {
-    const response = await api.get(`/friends/search?q=${encodeURIComponent(query)}`);
-    return response;
+    const data = await fetchApi(`/users/search?q=${encodeURIComponent(query)}`);
+    return data;
 }
 
 /**
- * Send a friend request
+ * Send a friend request by email or display name
+ * @param {string} targetEmailOrName - Email or display name of target user
  */
-export async function sendFriendRequest(friendId) {
-    const response = await api.post('/friends/request', { friendId });
-    return response;
+export async function sendFriendRequest(targetEmailOrName) {
+    const data = await fetchApi('/friends/request', {
+        method: 'POST',
+        body: JSON.stringify({ targetEmailOrName }),
+    });
+    return data;
 }
 
 /**
- * Accept a friend request
+ * Respond to a friend request (accept or reject)
+ * @param {string} friendshipId - The friendship record ID
+ * @param {boolean} accept - True to accept, false to reject
  */
-export async function acceptFriendRequest(friendshipId) {
-    const response = await api.put(`/friends/${friendshipId}/accept`);
-    return response;
+export async function respondToFriendRequest(friendshipId, accept) {
+    const data = await fetchApi('/friends/respond', {
+        method: 'POST',
+        body: JSON.stringify({ friendshipId, accept }),
+    });
+    return data;
 }
 
 /**
- * Reject a friend request
- */
-export async function rejectFriendRequest(friendshipId) {
-    const response = await api.put(`/friends/${friendshipId}/reject`);
-    return response;
-}
-
-/**
- * Remove a friend
- */
-export async function removeFriend(friendshipId) {
-    const response = await api.delete(`/friends/${friendshipId}`);
-    return response;
-}
-
-/**
- * Get list of friends
+ * Get list of friends and pending requests
+ * @returns {Promise<object>} - { friends, pendingRequests }
  */
 export async function getFriends() {
-    const response = await api.get('/friends');
-    return response;
+    const data = await fetchApi('/friends');
+    return data;
 }
 
-/**
- * Get pending friend requests (incoming and outgoing)
- */
-export async function getPendingRequests() {
-    const response = await api.get('/friends/pending');
-    return response;
-}
+export default {
+    searchUsers,
+    sendFriendRequest,
+    respondToFriendRequest,
+    getFriends,
+};

@@ -1,94 +1,80 @@
 /**
  * Authentication service for TravelMaps
  * Handles user registration, login, and session management
+ * 
+ * Uses apiClient.js which connects to the Express backend at /api/*
  */
 
-import api, { setTokens, clearTokens } from './api.js';
+import { fetchApi, getToken, setToken } from './apiClient.js';
 
 /**
  * Register a new user
  * @param {string} email - User's email
  * @param {string} password - User's password
- * @param {string} name - User's display name (becomes username)
- * @returns {Promise<object>} - User data and tokens
+ * @param {string} name - User's display name
+ * @returns {Promise<object>} - User data and token
  */
 export const register = async (email, password, name) => {
-    // Backend expects: username, email, password, displayName
-    const username = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    await api.post('/auth/register', {
-        username: username || `user_${Date.now()}`,
-        email,
-        password,
-        displayName: name,
+    const data = await fetchApi('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, display_name: name }),
     });
 
-    // Backend returns: { message, user }
-    // After registration, auto-login to get tokens
-    return login(email, password);
+    if (data.token) {
+        setToken(data.token);
+    }
+
+    return { user: data.user, token: data.token };
 };
 
 /**
  * Login an existing user
  * @param {string} email - User's email
  * @param {string} password - User's password
- * @returns {Promise<object>} - User data and tokens
+ * @returns {Promise<object>} - User data and token
  */
 export const login = async (email, password) => {
-    const data = await api.post('/auth/login', { email, password });
+    const data = await fetchApi('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
 
-    // Backend returns: { message, user, tokens: { accessToken, refreshToken } }
-    if (data.tokens?.accessToken) {
-        setTokens(data.tokens.accessToken, data.tokens.refreshToken);
-        localStorage.setItem('travelmaps:user', JSON.stringify(data.user));
+    if (data.token) {
+        setToken(data.token);
     }
 
-    return {
-        user: data.user,
-        accessToken: data.tokens?.accessToken,
-        refreshToken: data.tokens?.refreshToken,
-    };
+    return { user: data.user, token: data.token };
 };
 
 /**
  * Logout the current user
  */
 export const logout = () => {
-    clearTokens();
-    window.dispatchEvent(new CustomEvent('auth:logout'));
+    setToken(null);
 };
 
 /**
- * Get the current user from localStorage
- * @returns {object|null} - User object or null
+ * Get the current user from the server
+ * @returns {Promise<object|null>} - User object or null
  */
-export const getCurrentUser = () => {
+export const getCurrentUser = async () => {
+    const token = getToken();
+    if (!token) return null;
+
     try {
-        const token = localStorage.getItem('travelmaps:token');
-        const userJson = localStorage.getItem('travelmaps:user');
-
-        if (!token || !userJson) return null;
-
-        return JSON.parse(userJson);
+        const data = await fetchApi('/auth/me');
+        return data.user;
     } catch {
         return null;
     }
 };
 
 /**
- * Check if user is authenticated
+ * Check if user is authenticated (has a token)
  * @returns {boolean}
  */
 export const isAuthenticated = () => {
-    return !!localStorage.getItem('travelmaps:token');
-};
-
-/**
- * Fetch user profile from API
- * @returns {Promise<object>} - User profile data
- */
-export const getProfile = async () => {
-    const data = await api.get('/users/me');
-    return data;
+    return !!getToken();
 };
 
 export default {
@@ -97,5 +83,4 @@ export default {
     logout,
     getCurrentUser,
     isAuthenticated,
-    getProfile,
 };

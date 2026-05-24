@@ -5,7 +5,10 @@ const pool = new Pool({
     connectionString: process.env.SUPABASE_DB_URL,
     ssl: {
         rejectUnauthorized: false
-    }
+    },
+    max: 10,                      // Maximum pool size
+    idleTimeoutMillis: 30000,     // Close idle connections after 30s
+    connectionTimeoutMillis: 10000 // Fail fast if connection takes >10s
 });
 
 pool.connect((err, client, release) => {
@@ -85,7 +88,7 @@ function initDB() {
             actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             type TEXT NOT NULL,
             message TEXT,
-            is_read INTEGER DEFAULT 0,
+            is_read BOOLEAN DEFAULT false,
             target_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
