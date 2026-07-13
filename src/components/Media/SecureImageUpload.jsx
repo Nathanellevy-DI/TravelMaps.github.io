@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { uploadMedia, getMediaUrl, fetchApi } from '../../services/apiClient';
 import { Upload, Lock, Users, Globe, X, Image as ImageIcon } from 'lucide-react';
+import { usePlaces } from '../../contexts/PlacesContext';
+import { useSocial } from '../../contexts/SocialContext';
 
 /**
  * SecureImageUpload
@@ -10,26 +11,18 @@ import { Upload, Lock, Users, Globe, X, Image as ImageIcon } from 'lucide-react'
  * Connects directly to the encrypted media backend.
  */
 export default function SecureImageUpload({ placeId, onUploadSuccess }) {
+    const { uploadMedia } = usePlaces();
+    const { friends } = useSocial();
+    
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
     const [tier, setTier] = useState(1);
     const [sharedWith, setSharedWith] = useState([]);
     
-    // For Tier 2, we need a list of friends to select from
-    const [friends, setFriends] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
     
     const fileInputRef = useRef(null);
-
-    useEffect(() => {
-        // Fetch friends for Tier 1 / Tier 2 selection
-        fetchApi('/friends').then(res => {
-            if (res && res.friends) {
-                setFriends(res.friends);
-            }
-        }).catch(err => console.error("Failed to fetch friends for media sharing", err));
-    }, []);
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -85,7 +78,7 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
         setError('');
         
         try {
-            await uploadMedia(file, placeId, tier, tier === 3 ? [] : sharedWith);
+            await uploadMedia(placeId, file, tier);
             
             // Reset state on success
             setFile(null);

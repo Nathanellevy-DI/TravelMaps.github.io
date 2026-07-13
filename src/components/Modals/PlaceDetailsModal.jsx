@@ -16,7 +16,6 @@ import { usePlaces } from '../../contexts/PlacesContext';
 import ImageLightbox from '../UI/ImageLightbox';
 import { useDialog } from '../../hooks/useDialog.jsx';
 import SecureImageUpload from '../Media/SecureImageUpload';
-import { getMediaUrl, fetchApi } from '../../services/apiClient';
 
 /**
  * @param {Object}   props
@@ -46,20 +45,9 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
     useEffect(() => {
         if (!place || !place.media) return;
         
-        place.media.forEach(async (m) => {
-            if (!mediaUrls[m.id]) {
-                try {
-                    const token = localStorage.getItem('travelmaps_token');
-                    const res = await fetch(getMediaUrl(m.id), {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        const blob = await res.blob();
-                        setMediaUrls(prev => ({ ...prev, [m.id]: URL.createObjectURL(blob) }));
-                    }
-                } catch (e) {
-                    console.error('Failed to load secure media', e);
-                }
+        place.media.forEach((m) => {
+            if (!mediaUrls[m.id] && m.dataUrl) {
+                setMediaUrls(prev => ({ ...prev, [m.id]: m.dataUrl }));
             }
         });
     }, [place?.media]);

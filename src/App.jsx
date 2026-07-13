@@ -29,6 +29,7 @@ import MapComponent from './components/Map/MapComponent';
 import PlaceDetailsModal from './components/Modals/PlaceDetailsModal';
 import LoginPage from './components/Auth/LoginPage';
 import RegisterPage from './components/Auth/RegisterPage';
+import LandingPage from './components/UI/LandingPage';
 import InstallPrompt from './components/UI/InstallPrompt';
 import { useDialog } from './hooks/useDialog.jsx';
 import { Menu, MapPin, LogOut, Loader2 } from 'lucide-react';
@@ -298,8 +299,14 @@ export default function App() {
 function AppRouter() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
 
-
+  // Reset showAuth when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setShowAuth(false);
+    }
+  }, [isAuthenticated]);
 
   // Debug logging — can be removed in production
   console.log('App State:', { user, isAuthenticated, version: '2.0' });
@@ -309,10 +316,18 @@ function AppRouter() {
   }
 
   if (!isAuthenticated) {
+    if (!showAuth) {
+      return (
+        <LandingPage 
+          onEnterLogin={() => { setShowAuth(true); setIsRegistering(false); }} 
+          onEnterRegister={() => { setShowAuth(true); setIsRegistering(true); }} 
+        />
+      );
+    }
     return isRegistering ? (
-      <RegisterPage onSwitchToLogin={() => setIsRegistering(false)} />
+      <RegisterPage onSwitchToLogin={() => setIsRegistering(false)} onBackToLanding={() => setShowAuth(false)} />
     ) : (
-      <LoginPage onSwitchToRegister={() => setIsRegistering(true)} />
+      <LoginPage onSwitchToRegister={() => setIsRegistering(true)} onBackToLanding={() => setShowAuth(false)} />
     );
   }
 

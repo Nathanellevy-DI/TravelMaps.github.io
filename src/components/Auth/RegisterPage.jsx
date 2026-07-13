@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import HowToUseModal from '../UI/HowToUseModal';
 import './LoginPage.css';
 
-export default function RegisterPage({ onSwitchToLogin }) {
+export default function RegisterPage({ onSwitchToLogin, onBackToLanding }) {
     const { register, error, clearError } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -113,13 +113,18 @@ export default function RegisterPage({ onSwitchToLogin }) {
                     
                 </form>
 
-                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <div style={{ marginTop: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                     <p style={{ color: 'var(--text-secondary)'}}>
                         Already have an account?{' '}
                         <button type="button" onClick={onSwitchToLogin} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline'}}>
                             Log In
                         </button>
                     </p>
+                    {onBackToLanding && (
+                        <button type="button" onClick={onBackToLanding} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}>
+                            Back to Home
+                        </button>
+                    )}
                 </div>
 
                 <button

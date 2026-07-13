@@ -1,12 +1,11 @@
 /**
- * PlacesContext.jsx — Supabase Global State for Saved Places & Categories
+ * PlacesContext.jsx — IndexedDB Global State for Saved Places & Categories
  */
 
 import { createContext, useState, useEffect, useContext, useRef, useMemo, Fragment } from 'react';
 import { useDialog } from '../hooks/useDialog.jsx';
-import { fetchApi } from '../services/apiClient';
 import { useAuth } from './AuthContext';
-import { useSocial } from './SocialContext';
+import { getUserData, saveUserData } from '../utils/db';
 
 const PlacesContext = createContext();
 
@@ -46,22 +45,29 @@ export function PlacesProvider({ children, user }) {
     );
 
     const { showConfirm, DialogComponent } = useDialog();
-    const { friends } = useSocial(); // To trigger re-fetch if friendship changes could mean more places viewable
 
     const [savedPlaces, setSavedPlaces] = useState([]);
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
     const [isLoaded, setIsLoaded] = useState(false);
     const loadingRef = useRef(false);
 
+    // Get the unique username key for IndexedDB
+    const userIdKey = user ? (typeof user === 'object' ? user.id : user) : 'guest';
+
     const fetchPlaces = async () => {
         if (!user) return;
         try {
-            // Policies will automatically restrict what we can see to:
-            // 1. our own places
-            // 2. public places
-            // 3. friends' places that are shared with friends
-            const data = await fetchApi('/places');
-            setSavedPlaces(data);
+            const data = await getUserData(userIdKey);
+            if (data) {
+                setSavedPlaces(data.savedPlaces || []);
+                setCategories(data.categories || DEFAULT_CATEGORIES);
+            } else {
+                // Initialize
+                const initialData = { savedPlaces: [], categories: DEFAULT_CATEGORIES };
+                await saveUserData(userIdKey, initialData);
+                setSavedPlaces([]);
+                setCategories(DEFAULT_CATEGORIES);
+            }
             setIsLoaded(true);
         } catch (error) {
             console.error('Error loading places:', error);
@@ -76,11 +82,7 @@ export function PlacesProvider({ children, user }) {
         fetchPlaces().finally(() => {
             loadingRef.current = false;
         });
-
-        // WebSockets will be handled in SocialContext for simplicity, 
-        // or we could just add socket.io here if needed.
-        // For now, SocialContext's refresh will trigger if needed, or we rely on optimistic updates.
-    }, [user, friends]);
+    }, [user]);
 
     const [creationSettings, setCreationSettings] = useState({
         category: 'Default',
@@ -99,9 +101,13 @@ export function PlacesProvider({ children, user }) {
         }));
     };
 
-    const addCategory = (name) => {
+    const addCategory = async (name) => {
+        let updatedCategories = categories;
         if (!categories.includes(name)) {
-            setCategories(prev => [...prev, name]);
+            updatedCategories = [...categories, name];
+            setCategories(updatedCategories);
+            // Save to IndexedDB
+            await saveUserData(userIdKey, { savedPlaces, categories: updatedCategories });
         }
         setCategory(name);
     };
@@ -115,7 +121,7 @@ export function PlacesProvider({ children, user }) {
         
         const newPlace = {
             id: placeId,
-            user_id: user.id,
+            user_id: userIdKey,
             lat: place.lat,
             lon: place.lon,
             name: place.name,
@@ -129,12 +135,9 @@ export function PlacesProvider({ children, user }) {
         };
 
         try {
-            await fetchApi('/places', {
-                method: 'POST',
-                body: JSON.stringify(newPlace)
-            });
-            // Optimistic update
-            setSavedPlaces(prev => [newPlace, ...prev]);
+            const updatedPlaces = [newPlace, ...savedPlaces];
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
         } catch (error) {
             alert('Failed to save place: ' + error.message);
         }
@@ -144,8 +147,9 @@ export function PlacesProvider({ children, user }) {
         const confirmed = await showConfirm('Delete Place', 'Delete this saved place and all its memories?', true);
         if (confirmed) {
             try {
-                await fetchApi(`/places/${id}`, { method: 'DELETE' });
-                setSavedPlaces(prev => prev.filter(p => p.id !== id));
+                const updatedPlaces = savedPlaces.filter(p => p.id !== id);
+                setSavedPlaces(updatedPlaces);
+                await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
             } catch (err) {
                 console.error(err);
             }
@@ -154,15 +158,13 @@ export function PlacesProvider({ children, user }) {
 
     const updateVisibility = async (placeId, newVisibility) => {
         try {
-            await fetchApi(`/places/${placeId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ visibility: newVisibility })
-            });
-            setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, visibility: newVisibility } : p));
+            const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, visibility: newVisibility } : p);
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
         } catch (err) {
             console.error(err);
         }
-    }
+    };
 
     const addMemory = async (placeId, memory) => {
         const place = getPlace(placeId);
@@ -170,11 +172,9 @@ export function PlacesProvider({ children, user }) {
         const updatedMemories = [...place.memories, memory];
         
         try {
-            await fetchApi(`/places/${placeId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ memories: updatedMemories })
-            });
-            setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p));
+            const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p);
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
         } catch (err) {
             console.error(err);
         }
@@ -188,11 +188,9 @@ export function PlacesProvider({ children, user }) {
             const updatedMemories = place.memories.filter(m => m.id !== memoryId);
 
             try {
-                await fetchApi(`/places/${placeId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ memories: updatedMemories })
-                });
-                setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p));
+                const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, memories: updatedMemories } : p);
+                setSavedPlaces(updatedPlaces);
+                await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
             } catch (err) {
                 console.error(err);
             }
@@ -202,17 +200,109 @@ export function PlacesProvider({ children, user }) {
     const updatePlaceCategory = async (placeId, newCategory) => {
         const newColor = getCategoryColor(newCategory);
         try {
-            await fetchApi(`/places/${placeId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ category: newCategory, color: newColor })
-            });
-            setSavedPlaces(prev => prev.map(p => p.id === placeId ? { ...p, category: newCategory, color: newColor } : p));
+            const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, category: newCategory, color: newColor } : p);
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const clearAll = async () => {
+        try {
+            setSavedPlaces([]);
+            await saveUserData(userIdKey, { savedPlaces: [], categories });
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const restoreData = async (places, cats) => {
+        try {
+            setSavedPlaces(places || []);
+            if (cats && cats.length > 0) {
+                setCategories(cats);
+            }
+            await saveUserData(userIdKey, { savedPlaces: places || [], categories: cats || categories });
         } catch (err) {
             console.error(err);
         }
     };
 
     const getPlace = (id) => savedPlaces.find(p => p.id === id);
+
+    const submitRequest = async (placeId, request) => {
+        try {
+            const updatedPlaces = savedPlaces.map(p => {
+                if (p.id === placeId) {
+                    return {
+                        ...p,
+                        approvalStatus: 'pending',
+                        requests: [...(p.requests || []), request]
+                    };
+                }
+                return p;
+            });
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const approvePlace = async (placeId) => {
+        try {
+            const updatedPlaces = savedPlaces.map(p => {
+                if (p.id === placeId) {
+                    return {
+                        ...p,
+                        approvalStatus: 'approved'
+                    };
+                }
+                return p;
+            });
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const refreshPlaces = async () => {
+        await fetchPlaces();
+    };
+
+    const uploadMedia = async (placeId, file, tier) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const mediaId = 'm_' + Date.now();
+                    const newMedia = {
+                        id: mediaId,
+                        tier,
+                        dataUrl: reader.result
+                    };
+                    const updatedPlaces = savedPlaces.map(p => {
+                        if (p.id === placeId) {
+                            return {
+                                ...p,
+                                media: [...(p.media || []), newMedia]
+                            };
+                        }
+                        return p;
+                    });
+                    setSavedPlaces(updatedPlaces);
+                    await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+                    resolve({ success: true, mediaId });
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+    };
 
     return (
         <Fragment>
@@ -231,7 +321,13 @@ export function PlacesProvider({ children, user }) {
                 setCreationSettings,
                 setCategory,
                 updatePlaceCategory,
-                updateVisibility
+                updateVisibility,
+                clearAll,
+                restoreData,
+                submitRequest,
+                approvePlace,
+                refreshPlaces,
+                uploadMedia
             }}>
                 {children}
             </PlacesContext.Provider>

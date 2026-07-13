@@ -1,13 +1,20 @@
-/**
- * AuthContext.jsx — Custom API Authentication Context
- *
- * Provides authentication state and methods throughout the app connected to Express backend.
- */
-
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { fetchApi, getToken, setToken } from '../services/apiClient';
 
 const AuthContext = createContext();
+
+// Helper to get local users list
+const getLocalUsers = () => {
+    try {
+        return JSON.parse(localStorage.getItem('travelmaps_users') || '[]');
+    } catch {
+        return [];
+    }
+};
+
+// Helper to save local users list
+const saveLocalUsers = (users) => {
+    localStorage.setItem('travelmaps_users', JSON.stringify(users));
+};
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -15,17 +22,15 @@ export function AuthProvider({ children }) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const initAuth = async () => {
-            const token = getToken();
-            if (token) {
-                try {
-                    const data = await fetchApi('/auth/me');
-                    setUser(data.user);
-                } catch (err) {
-                    console.error('Auth error on load:', err);
-                    setToken(null);
-                    setUser(null);
+        const initAuth = () => {
+            try {
+                const currentUserStr = localStorage.getItem('travelmaps_current_user');
+                if (currentUserStr) {
+                    setUser(JSON.parse(currentUserStr));
                 }
+            } catch (err) {
+                console.error('Auth error on load:', err);
+                localStorage.removeItem('travelmaps_current_user');
             }
             setIsLoading(false);
         };
@@ -36,14 +41,22 @@ export function AuthProvider({ children }) {
         setError(null);
         setIsLoading(true);
         try {
-            const data = await fetchApi('/auth/login', {
-                method: 'POST',
-                body: JSON.stringify({ email, password })
-            });
-            setToken(data.token);
-            setUser(data.user);
+            const users = getLocalUsers();
+            const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+            
+            if (!foundUser) {
+                throw new Error('User not found');
+            }
+            if (foundUser.password !== password) {
+                throw new Error('Invalid password');
+            }
+
+            const sessionUser = { id: foundUser.id, email: foundUser.email, name: foundUser.name };
+            localStorage.setItem('travelmaps_current_user', JSON.stringify(sessionUser));
+            localStorage.setItem('travelmaps_token', 'mock_token_' + foundUser.id);
+            setUser(sessionUser);
             setIsLoading(false);
-            return { data, error: null };
+            return { data: { user: sessionUser }, error: null };
         } catch (err) {
             setError(err.message);
             setIsLoading(false);
@@ -55,14 +68,25 @@ export function AuthProvider({ children }) {
         setError(null);
         setIsLoading(true);
         try {
-            const data = await fetchApi('/auth/register', {
-                method: 'POST',
-                body: JSON.stringify({ email, password, display_name: displayName })
-            });
-            setToken(data.token);
-            setUser(data.user);
+            const users = getLocalUsers();
+            const exists = users.some(u => u.email.toLowerCase() === email.toLowerCase());
+            if (exists) {
+                throw new Error('Email already exists');
+            }
+
+            const newId = 'u_' + Date.now();
+            const name = displayName || email.split('@')[0];
+            const newUser = { id: newId, email, password, name };
+            
+            users.push(newUser);
+            saveLocalUsers(users);
+
+            const sessionUser = { id: newId, email, name };
+            localStorage.setItem('travelmaps_current_user', JSON.stringify(sessionUser));
+            localStorage.setItem('travelmaps_token', 'mock_token_' + newId);
+            setUser(sessionUser);
             setIsLoading(false);
-            return { data, error: null };
+            return { data: { user: sessionUser }, error: null };
         } catch (err) {
             setError(err.message);
             setIsLoading(false);
@@ -71,7 +95,8 @@ export function AuthProvider({ children }) {
     }, []);
 
     const logout = useCallback(() => {
-        setToken(null);
+        localStorage.removeItem('travelmaps_current_user');
+        localStorage.removeItem('travelmaps_token');
         setUser(null);
     }, []);
 

@@ -3,7 +3,6 @@
  */
 import { useState } from 'react';
 import { X, Search, UserPlus, UserMinus, Check, XCircle, Users } from 'lucide-react';
-import { fetchApi } from '../../services/apiClient';
 import { useSocial } from '../../contexts/SocialContext';
 
 export default function FriendsContent({ user }) {
@@ -29,9 +28,20 @@ export default function FriendsContent({ user }) {
         setError('');
         
         try {
-            const data = await fetchApi(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+            // Read local users list
+            const allUsers = JSON.parse(localStorage.getItem('travelmaps_users') || '[]');
+            const query = searchQuery.toLowerCase();
+            const matchingUsers = allUsers.filter(u => 
+                (u.email.toLowerCase().includes(query) || u.name.toLowerCase().includes(query)) &&
+                u.id !== user?.id
+            ).map(u => ({
+                id: u.id,
+                display_name: u.name,
+                email: u.email
+            }));
+
             const existingFriendIds = friends.map(f => f.id);
-            setSearchResults(data.filter(u => !existingFriendIds.includes(u.id) && u.id !== user?.id));
+            setSearchResults(matchingUsers.filter(u => !existingFriendIds.includes(u.id)));
         } catch (err) {
             setError('Search failed. Please try again.');
         } finally {

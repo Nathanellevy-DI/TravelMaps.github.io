@@ -12,7 +12,6 @@
  */
 import { useState } from 'react';
 import { X, Share2, Globe, Users, Lock } from 'lucide-react';
-import { fetchApi } from '../../services/apiClient';
 import { usePlaces } from '../../contexts/PlacesContext';
 
 export default function ShareModal({ isOpen, onClose, type, item }) {
