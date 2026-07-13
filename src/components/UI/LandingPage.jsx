@@ -1,98 +1,143 @@
 import React from 'react';
-import { Map, MapPin, Share2, Shield, Image, Music, ArrowRight, Mail } from 'lucide-react';
+import { Map, Shield, Edit, Heart, Eye, Mail } from 'lucide-react';
 import './LandingPage.css';
 
 export default function LandingPage({ onEnterLogin, onEnterRegister }) {
+    const scrollToSection = (id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     return (
         <div className="landing-container">
-            {/* Animated Background Orbs */}
-            <div className="landing-orb landing-orb-1"></div>
-            <div className="landing-orb landing-orb-2"></div>
-            <div className="landing-orb landing-orb-3"></div>
-
-            {/* Header */}
+            {/* Header / Nav */}
             <header className="landing-header">
-                <div className="landing-logo-container">
-                    <Map size={32} className="landing-logo-icon" />
+                <div className="landing-logo-container" style={{ cursor: 'pointer' }} onClick={() => window.location.reload()}>
+                    <Map size={24} className="landing-logo-icon" />
                     <span className="landing-logo-text">TravelMaps</span>
                 </div>
+                <nav className="landing-nav">
+                    <button onClick={() => scrollToSection('overview')}>OVERVIEW</button>
+                    <button onClick={() => scrollToSection('platform')}>PLATFORM</button>
+                    <button onClick={() => scrollToSection('values')}>VALUES</button>
+                </nav>
                 <div className="landing-header-actions">
-                    <button className="secondary small-btn" onClick={onEnterLogin}>Log In</button>
-                    <button className="primary small-btn" onClick={onEnterRegister}>Sign Up</button>
+                    <button className="nav-action-btn secondary-flat" onClick={onEnterLogin}>Log In</button>
+                    <button className="nav-action-btn primary-flat" onClick={onEnterRegister}>Sign Up</button>
                 </div>
             </header>
 
             {/* Hero Section */}
-            <section className="landing-hero">
-                <h1 className="landing-title">
-                    Collect Memories. <br />
-                    <span>Map Your Journey.</span>
-                </h1>
-                <p className="landing-subtitle">
-                    TravelMaps is a private, interactive mapping platform. Save your favorite locations, add rich media memories, and share your adventures with a trusted circle.
-                </p>
-                <div className="landing-hero-actions">
-                    <button className="primary hero-btn" onClick={onEnterRegister}>
-                        Get Started Free <ArrowRight size={18} />
-                    </button>
-                    <button className="secondary hero-btn" onClick={onEnterLogin}>
-                        Open App
+            <section id="overview" className="landing-hero-section">
+                <div className="hero-background-topography"></div>
+                <div className="hero-content-wrapper">
+                    <h1 className="hero-title">
+                        Collect Memories.<br />
+                        Map Your Journey.
+                    </h1>
+                    <p className="hero-description">
+                        TravelMaps is a private, interactive mapping platform designed for explorers to document their journeys. 
+                        Securely store your data locally while offering selective sharing with a trusted social circle.
+                    </p>
+                    <button className="flat-cta-btn" onClick={onEnterRegister}>
+                        START MAPPING
                     </button>
                 </div>
             </section>
 
-            {/* Features Grid */}
-            <section className="landing-features">
-                <h2 className="landing-section-title">Features Built for Explorers</h2>
-                <div className="features-grid">
-                    <div className="feature-card">
-                        <div className="feature-icon-wrapper">
-                            <MapPin size={24} />
+            {/* Platform / Features Section */}
+            <section id="platform" className="landing-platform-section">
+                <div className="section-container">
+                    <h2 className="section-title">Functional Tools for Explorers</h2>
+                    <p className="section-subtitle">
+                        A secure, user-centric digital scrapbook prioritizing data privacy through local storage and interactive documentation.
+                    </p>
+                    
+                    <div className="platform-features-grid">
+                        <div className="platform-feature-card">
+                            <div className="platform-feature-num">01</div>
+                            <h3>Interactive Map Pinning</h3>
+                            <p>Pin custom destinations with coordinates. Set distinct categories, colors, and notes for every single coordinate on your map.</p>
                         </div>
-                        <h3>Interactive Pinning</h3>
-                        <p>Click anywhere on the map to drop a pin. Categorize locations and customize colors for a personalized map layout.</p>
-                    </div>
-
-                    <div className="feature-card">
-                        <div className="feature-icon-wrapper">
-                            <Image size={24} />
+                        <div className="platform-feature-card">
+                            <div className="platform-feature-num">02</div>
+                            <h3>Multimedia Memory Book</h3>
+                            <p>Add text logs, upload custom photos or videos, attach favorite music tracks, and record live voice notes to keep the atmosphere of your trip.</p>
                         </div>
-                        <h3>Multimedia Memories</h3>
-                        <p>Attach notes, photos, music, and details to your pinned locations. Turn coordinates into rich, digital scrapbooks.</p>
-                    </div>
-
-                    <div className="feature-card">
-                        <div className="feature-icon-wrapper">
-                            <Shield size={24} />
+                        <div className="platform-feature-card">
+                            <div className="platform-feature-num">03</div>
+                            <h3>Offline Privacy First</h3>
+                            <p>All database records and file uploads are saved directly inside your browser's local IndexedDB. Safe, offline, and completely under your control.</p>
                         </div>
-                        <h3>Local & Secure</h3>
-                        <p>Your data is stored securely in your browser's local IndexedDB. Keep your travel journal private or choose what to export.</p>
-                    </div>
-
-                    <div className="feature-card">
-                        <div className="feature-icon-wrapper">
-                            <Share2 size={24} />
-                        </div>
-                        <h3>Trusted Social Sharing</h3>
-                        <p>Connect with close friends to share specific pins. Control visibility settings on every location you add.</p>
                     </div>
                 </div>
             </section>
 
-            {/* Footer / Contact */}
-            <footer className="landing-footer">
-                <div className="footer-content">
-                    <div className="footer-brand">
-                        <Map size={24} className="footer-logo" />
-                        <span>TravelMaps</span>
-                    </div>
-                    <div className="footer-contact">
-                        <Mail size={16} />
-                        <span>Contact us: <a href="mailto:travelmaps@inbox.ru">travelmaps@inbox.ru</a></span>
+            {/* Values Section */}
+            <section id="values" className="landing-values-section">
+                <div className="section-container">
+                    <h2 className="section-title light">Our Core Values</h2>
+                    
+                    <div className="values-grid">
+                        <div className="value-card">
+                            <Shield size={24} className="value-icon" />
+                            <h3>Privacy</h3>
+                            <p>Private by design. Your coordinates, pictures, and notes belong to you and stay on your device.</p>
+                        </div>
+                        <div className="value-card">
+                            <Edit size={24} className="value-icon" />
+                            <h3>Personalization</h3>
+                            <p>Tailor your map tags, colors, and multimedia memories to match the visual vibe of your travel diary.</p>
+                        </div>
+                        <div className="value-card">
+                            <Heart size={24} className="value-icon" />
+                            <h3>Connectivity</h3>
+                            <p>Share specific pins and memories securely with select companions without broadcasting your layout to the public.</p>
+                        </div>
+                        <div className="value-card">
+                            <Eye size={24} className="value-icon" />
+                            <h3>Security</h3>
+                            <p>Robust encrypted structures protect user authentication records and sensitive local files.</p>
+                        </div>
                     </div>
                 </div>
-                <div className="footer-bottom">
-                    <p>&copy; {new Date().getFullYear()} TravelMaps. All rights reserved.</p>
+            </section>
+
+            {/* CTA Get Started Callout */}
+            <section className="landing-callout-section">
+                <div className="section-container">
+                    <h2>Ready to map your journey?</h2>
+                    <p>Join a selective market of explorers documenting their adventures securely.</p>
+                    <button className="flat-cta-btn centered" onClick={onEnterRegister}>
+                        GET STARTED
+                    </button>
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="landing-footer-section">
+                <div className="footer-container">
+                    <div className="footer-column-left">
+                        <div className="footer-logo">
+                            <Map size={24} />
+                            <span>TravelMaps</span>
+                        </div>
+                        <p className="footer-desc">
+                            A secure, user-centric digital scrapbook for travelers, prioritizing data privacy through local storage.
+                        </p>
+                    </div>
+                    <div className="footer-column-right">
+                        <h3>Contact & Connect</h3>
+                        <div className="footer-contact-item">
+                            <Mail size={16} />
+                            <a href="mailto:travelmaps@inbox.ru">travelmaps@inbox.ru</a>
+                        </div>
+                    </div>
+                </div>
+                <div className="footer-bottom-bar">
+                    <span>&copy; {new Date().getFullYear()} TravelMaps. All rights reserved.</span>
                 </div>
             </footer>
         </div>

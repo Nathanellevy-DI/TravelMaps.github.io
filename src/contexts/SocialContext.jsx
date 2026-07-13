@@ -79,13 +79,17 @@ export function SocialProvider({ children }) {
             const name = emailOrName.trim();
             if (!name) return { error: 'Invalid name' };
 
+            const isEmail = name.includes('@');
+            const targetEmail = isEmail ? name : name.toLowerCase().replace(/\s+/g, '') + '@example.com';
+            const displayName = isEmail ? name.split('@')[0] : name;
+
             // Create a pending request
             const newRequest = {
                 friendship_id: 'fs_' + Date.now(),
                 action_user_id: 'mock_user',
                 id: 'mock_user_' + Date.now(),
-                display_name: name,
-                email: name.toLowerCase().replace(/\s+/g, '') + '@example.com'
+                display_name: displayName,
+                email: targetEmail
             };
 
             const updatedRequests = [...pendingRequests, newRequest];

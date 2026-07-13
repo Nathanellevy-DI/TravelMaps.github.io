@@ -1,40 +1,66 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Lock, Users, Globe, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, Lock, Users, Globe, X, Image as ImageIcon, Video, Music, FileText, Mic, MicOff, AlertCircle } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import { useSocial } from '../../contexts/SocialContext';
 
 /**
- * SecureImageUpload
+ * SecureMediaUpload
  * 
- * Component that allows users to upload images with explicit tier-based
- * visibility settings (Tier 1: Private, Tier 2: Group, Tier 3: Public).
- * Connects directly to the encrypted media backend.
+ * Replaces SecureImageUpload to allow users to add:
+ *   - Photo, Video, or Music files (via Drag/Drop or File Picker)
+ *   - Text Notes
+ *   - Voice Notes (recorded live using the browser microphone)
+ * 
+ * Includes Visibility Tiers (Private, Group, Public) and friend-selector mapping.
  */
 export default function SecureImageUpload({ placeId, onUploadSuccess }) {
-    const { uploadMedia } = usePlaces();
+    const { uploadMedia, addTextNote } = usePlaces();
     const { friends } = useSocial();
     
+    // Tab State: 'file' | 'note' | 'voice'
+    const [uploadType, setUploadType] = useState('file');
+    
+    // Core file/data states
     const [file, setFile] = useState(null);
-    const [preview, setPreview] = useState(null);
+    const [preview, setPreview] = useState(null); // Preview DataURL
+    const [noteText, setNoteText] = useState('');
     const [tier, setTier] = useState(1);
     const [sharedWith, setSharedWith] = useState([]);
     
+    // Recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const timerRef = useRef(null);
+
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
-    
     const fileInputRef = useRef(null);
+
+    // Clean up timer on unmount
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
         if (!selectedFile) return;
         
-        if (!selectedFile.type.startsWith('image/')) {
-            setError('Please select an image file.');
+        // Accept images, videos, audio
+        const isValidType = selectedFile.type.startsWith('image/') || 
+                            selectedFile.type.startsWith('video/') || 
+                            selectedFile.type.startsWith('audio/');
+        
+        if (!isValidType) {
+            setError('Please select an image, video, or audio/music file.');
             return;
         }
         
-        if (selectedFile.size > 10 * 1024 * 1024) {
-            setError('File size must be less than 10MB.');
+        if (selectedFile.size > 20 * 1024 * 1024) { // Max 20MB
+            setError('File size must be less than 20MB.');
             return;
         }
         
@@ -48,12 +74,65 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
         reader.readAsDataURL(selectedFile);
     };
 
+    // Voice Recorder implementation
+    const startRecording = async () => {
+        setError('');
+        audioChunksRef.current = [];
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const recordedFile = new File([audioBlob], `voice_note_${Date.now()}.webm`, { type: 'audio/webm' });
+                setFile(recordedFile);
+                
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setPreview(reader.result);
+                };
+                reader.readAsDataURL(recordedFile);
+                
+                // Stop all tracks to release mic
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingDuration(0);
+            
+            timerRef.current = setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+
+        } catch (err) {
+            console.error('Mic access error:', err);
+            setError('Microphone access denied or not available.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+        }
+    };
+
     const toggleFriend = (friendId) => {
         if (tier === 1) {
-            // Tier 1 allows exactly ONE user
             setSharedWith([friendId]);
         } else {
-            // Tier 2 allows MULTIPLE users
             setSharedWith(prev => 
                 prev.includes(friendId) 
                     ? prev.filter(id => id !== friendId)
@@ -63,8 +142,19 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
     };
 
     const handleUpload = async () => {
-        if (!file) return;
-        
+        // Validation based on type
+        if (uploadType === 'file' || uploadType === 'voice') {
+            if (!file) {
+                setError('No media file/recording selected.');
+                return;
+            }
+        } else if (uploadType === 'note') {
+            if (!noteText.trim()) {
+                setError('Please type in a note.');
+                return;
+            }
+        }
+
         if (tier === 1 && sharedWith.length === 0) {
             setError('For Private Single sharing, you must select one person.');
             return;
@@ -78,18 +168,23 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
         setError('');
         
         try {
-            await uploadMedia(placeId, file, tier);
+            if (uploadType === 'note') {
+                await addTextNote(placeId, noteText, tier);
+            } else {
+                await uploadMedia(placeId, file, tier);
+            }
             
-            // Reset state on success
+            // Reset states on success
             setFile(null);
             setPreview(null);
+            setNoteText('');
             setSharedWith([]);
             setTier(1);
             if (onUploadSuccess) onUploadSuccess();
             
         } catch (err) {
             console.error('Upload error', err);
-            setError('Upload failed. Please try again.');
+            setError('Save failed. Please try again.');
         } finally {
             setIsUploading(false);
         }
@@ -98,7 +193,15 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
     const cancelUpload = () => {
         setFile(null);
         setPreview(null);
+        setNoteText('');
         setError('');
+        if (isRecording) stopRecording();
+    };
+
+    const formatDuration = (sec) => {
+        const mins = Math.floor(sec / 60);
+        const secs = sec % 60;
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
     return (
@@ -106,73 +209,159 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
             background: 'var(--surface)', padding: '16px', borderRadius: '12px', marginTop: '16px',
             border: '1px solid var(--border)'
         }}>
-            <h4 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ImageIcon size={18} /> Secure Media Upload
-            </h4>
             
-            {!file ? (
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+                <button 
+                    className={`small-btn ${uploadType === 'file' ? 'primary' : 'secondary'}`} 
+                    onClick={() => { setUploadType('file'); cancelUpload(); }}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}
+                >
+                    <Upload size={14} /> File
+                </button>
+                <button 
+                    className={`small-btn ${uploadType === 'note' ? 'primary' : 'secondary'}`} 
+                    onClick={() => { setUploadType('note'); cancelUpload(); }}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}
+                >
+                    <FileText size={14} /> Note
+                </button>
+                <button 
+                    className={`small-btn ${uploadType === 'voice' ? 'primary' : 'secondary'}`} 
+                    onClick={() => { setUploadType('voice'); cancelUpload(); }}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}
+                >
+                    <Mic size={14} /> Voice
+                </button>
+            </div>
+            
+            {/* 1. File Upload Dropzone */}
+            {uploadType === 'file' && !file && (
                 <div 
                     className="upload-dropzone"
                     onClick={() => fileInputRef.current?.click()}
                     style={{
-                        border: '2px dashed var(--border)', borderRadius: '8px', padding: '32px',
+                        border: '2px dashed var(--border)', borderRadius: '8px', padding: '24px 16px',
                         textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s ease',
                         background: 'rgba(0,0,0,0.05)'
                     }}
                 >
-                    <Upload size={32} style={{ color: 'var(--muted)', marginBottom: '12px' }} />
-                    <p style={{ margin: 0, color: 'var(--text-main)', fontWeight: 500 }}>Click to select an image</p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>End-to-End Encrypted • Max 10MB</p>
+                    <Upload size={32} style={{ color: 'var(--muted)', marginBottom: '8px' }} />
+                    <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 500 }}>Select Photo, Video, or Music</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--muted)' }}>E2E Encrypted • Max 20MB</p>
                 </div>
-            ) : (
-                <div className="upload-preview" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
-                        <img src={preview} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover' }} />
-                        <button 
-                            className="icon-btn" 
-                            onClick={cancelUpload}
-                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: 'white' }}
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
+            )}
+
+            {/* 2. Text Note input */}
+            {uploadType === 'note' && !file && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <textarea 
+                        placeholder="Write down details or memories about this place..."
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        style={{
+                            width: '100%', minHeight: '100px', padding: '12px',
+                            background: 'var(--input-bg)', color: 'var(--text-main)',
+                            border: '1px solid var(--border)', borderRadius: '8px',
+                            fontSize: '14px', outline: 'none', resize: 'vertical'
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* 3. Voice Recording panel */}
+            {uploadType === 'voice' && !file && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '16px 8px', background: 'rgba(0,0,0,0.1)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    {isRecording ? (
+                        <>
+                            <div className="recording-pulse" style={{ display: 'flex', alignItems: 'center', justifyItems: 'center', width: '50px', height: '50px', borderRadius: '50%', background: '#ff6961', color: 'white', justifyContent: 'center' }}>
+                                <Mic size={24} className="pulse-animation" />
+                            </div>
+                            <div style={{ fontSize: '18px', fontWeight: 700, color: '#ff6961' }}>{formatDuration(recordingDuration)}</div>
+                            <button className="primary danger" onClick={stopRecording} style={{ background: '#ff6961', borderColor: '#ff6961', color: 'white', padding: '6px 16px', fontSize: '13px' }}>
+                                Stop Recording
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'var(--border)', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Mic size={24} />
+                            </div>
+                            <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>Record a custom audio memory using your microphone</p>
+                            <button className="primary" onClick={startRecording} style={{ padding: '6px 16px', fontSize: '13px' }}>
+                                Start Recording
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Preview & Sharing configuration */}
+            {((uploadType === 'file' || uploadType === 'voice') && file) || (uploadType === 'note' && noteText.trim()) ? (
+                <div className="upload-preview" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: uploadType === 'note' ? '12px' : '0' }}>
+                    {/* Media Preview Box */}
+                    {file && (
+                        <div style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                            {file.type.startsWith('image/') && (
+                                <img src={preview} alt="Preview" style={{ width: '100%', maxHeight: '180px', objectFit: 'cover' }} />
+                            )}
+                            {file.type.startsWith('video/') && (
+                                <video src={preview} controls style={{ width: '100%', maxHeight: '180px', background: 'black' }} />
+                            )}
+                            {file.type.startsWith('audio/') && (
+                                <div style={{ padding: '12px', background: 'rgba(0,0,0,0.1)' }}>
+                                    <p style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: 600 }}>{file.name}</p>
+                                    <audio src={preview} controls style={{ width: '100%' }} />
+                                </div>
+                            )}
+                            <button 
+                                className="icon-btn" 
+                                onClick={cancelUpload}
+                                style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px', borderRadius: '50%' }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    )}
                     
+                    {/* Security Sharing Visibility */}
                     <div className="security-tiers">
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px' }}>Sharing Visibility</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Sharing Visibility</label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                             <button 
                                 className={`small-btn ${tier === 1 ? 'primary' : 'secondary'}`} 
                                 onClick={() => { setTier(1); setSharedWith([]); }}
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                style={{ flex: 1, padding: '4px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                                <Lock size={14} /> Private (1)
+                                <Lock size={12} /> Private
                             </button>
                             <button 
                                 className={`small-btn ${tier === 2 ? 'primary' : 'secondary'}`} 
                                 onClick={() => { setTier(2); setSharedWith([]); }}
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                style={{ flex: 1, padding: '4px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                                <Users size={14} /> Group
+                                <Users size={12} /> Group
                             </button>
                             <button 
                                 className={`small-btn ${tier === 3 ? 'primary' : 'secondary'}`} 
                                 onClick={() => { setTier(3); setSharedWith([]); }}
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                style={{ flex: 1, padding: '4px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                                <Globe size={14} /> Public
+                                <Globe size={12} /> Public
                             </button>
                         </div>
                     </div>
 
+                    {/* Friend Selection Panel */}
                     {(tier === 1 || tier === 2) && (
                         <div className="friend-selector">
-                            <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                                 Select {tier === 1 ? 'Person' : 'People'}
                             </label>
                             {friends.length === 0 ? (
-                                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: 0 }}>No friends available to share with.</p>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: 0 }}>No friends available to share with.</p>
                             ) : (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {friends.map(f => {
                                         const isSelected = sharedWith.includes(f.id);
                                         return (
@@ -180,7 +369,7 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                                                 key={f.id}
                                                 className={`small-btn ${isSelected ? 'primary' : 'secondary'}`}
                                                 onClick={() => toggleFriend(f.id)}
-                                                style={{ padding: '4px 12px', borderRadius: '16px' }}
+                                                style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}
                                             >
                                                 {f.display_name}
                                             </button>
@@ -191,24 +380,34 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                         </div>
                     )}
 
-                    {error && <div style={{ color: 'red', fontSize: '0.85rem' }}>{error}</div>}
+                    {error && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ff6961', fontSize: '0.85rem' }}>
+                            <AlertCircle size={14} />
+                            <span>{error}</span>
+                        </div>
+                    )}
 
-                    <button 
-                        className="primary" 
-                        onClick={handleUpload} 
-                        disabled={isUploading}
-                        style={{ width: '100%', marginTop: '8px' }}
-                    >
-                        {isUploading ? 'Encrypting & Uploading...' : 'Secure Upload'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        {uploadType === 'note' && (
+                            <button className="secondary" onClick={cancelUpload} style={{ flex: 1 }}>Clear</button>
+                        )}
+                        <button 
+                            className="primary" 
+                            onClick={handleUpload} 
+                            disabled={isUploading}
+                            style={{ flex: 2 }}
+                        >
+                            {isUploading ? 'Securing memory...' : 'Save Securely'}
+                        </button>
+                    </div>
                 </div>
-            )}
+            ) : null}
             
             <input 
                 type="file" 
                 ref={fileInputRef} 
                 onChange={handleFileChange} 
-                accept="image/*" 
+                accept="image/*,video/*,audio/*" 
                 style={{ display: 'none' }} 
             />
         </div>

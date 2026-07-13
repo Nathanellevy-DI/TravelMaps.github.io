@@ -272,6 +272,56 @@ export function PlacesProvider({ children, user }) {
         await fetchPlaces();
     };
 
+    const removeMedia = async (placeId, mediaId) => {
+        const confirmed = await showConfirm('Delete Item', 'Are you sure you want to delete this memory?', true);
+        if (confirmed) {
+            try {
+                const updatedPlaces = savedPlaces.map(p => {
+                    if (p.id === placeId) {
+                        return {
+                            ...p,
+                            media: (p.media || []).filter(m => m.id !== mediaId)
+                        };
+                    }
+                    return p;
+                });
+                setSavedPlaces(updatedPlaces);
+                await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    };
+
+    const addTextNote = async (placeId, noteText, tier = 3) => {
+        try {
+            const mediaId = 'm_' + Date.now();
+            const newNote = {
+                id: mediaId,
+                tier,
+                type: 'text/plain',
+                name: 'Note',
+                dataUrl: noteText,
+                created_at: new Date().toISOString()
+            };
+            const updatedPlaces = savedPlaces.map(p => {
+                if (p.id === placeId) {
+                    return {
+                        ...p,
+                        media: [...(p.media || []), newNote]
+                    };
+                }
+                return p;
+            });
+            setSavedPlaces(updatedPlaces);
+            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+            return { success: true };
+        } catch (err) {
+            console.error(err);
+            return { error: err.message };
+        }
+    };
+
     const uploadMedia = async (placeId, file, tier) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -281,7 +331,10 @@ export function PlacesProvider({ children, user }) {
                     const newMedia = {
                         id: mediaId,
                         tier,
-                        dataUrl: reader.result
+                        name: file.name,
+                        type: file.type,
+                        dataUrl: reader.result,
+                        created_at: new Date().toISOString()
                     };
                     const updatedPlaces = savedPlaces.map(p => {
                         if (p.id === placeId) {
@@ -327,7 +380,9 @@ export function PlacesProvider({ children, user }) {
                 submitRequest,
                 approvePlace,
                 refreshPlaces,
-                uploadMedia
+                uploadMedia,
+                addTextNote,
+                removeMedia
             }}>
                 {children}
             </PlacesContext.Provider>

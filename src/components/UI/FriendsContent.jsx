@@ -145,12 +145,12 @@ export default function FriendsContent({ user }) {
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {searchResults.map(u => (
-                                    <div key={u.id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{u.display_name}</div>
-                                            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{u.email}</div>
+                                    <div key={u.id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.display_name}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
                                         </div>
-                                        <button className="small-btn" onClick={() => handleSendRequest(u.email)}>
+                                        <button className="small-btn" style={{ flexShrink: 0 }} onClick={() => handleSendRequest(u.email)}>
                                             <UserPlus size={14} /> Add
                                         </button>
                                     </div>
@@ -168,12 +168,12 @@ export default function FriendsContent({ user }) {
                     {activeTab === 'friends' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {friends.map((friend) => (
-                                <div key={friend.id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{friend.display_name}</div>
-                                        <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{friend.email}</div>
+                                <div key={friend.id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{friend.display_name}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{friend.email}</div>
                                     </div>
-                                    <button className="small-btn danger" onClick={() => respondToRequest(friend.friendship_id, false)}>
+                                    <button className="small-btn danger" style={{ flexShrink: 0 }} onClick={() => respondToRequest(friend.friendship_id, false)}>
                                         <UserMinus size={14} /> Remove
                                     </button>
                                 </div>
@@ -197,12 +197,12 @@ export default function FriendsContent({ user }) {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {incomingRequests.map((req) => (
                                             <div key={req.friendship_id} className="saved-card" style={{ padding: '12px' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{req.display_name}</div>
-                                                        <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{req.email}</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.display_name}</div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.email}</div>
                                                     </div>
-                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                                         <button className="small-btn" style={{ background: '#2d5016', borderColor: '#4a8020', color: '#90ee90' }} onClick={() => respondToRequest(req.friendship_id, true)}>
                                                             <Check size={14} /> Accept
                                                         </button>
@@ -224,12 +224,12 @@ export default function FriendsContent({ user }) {
                                     </h4>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {outgoingRequests.map((req) => (
-                                            <div key={req.friendship_id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: '14px' }}>{req.display_name}</div>
-                                                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{req.email} • Pending</div>
+                                            <div key={req.friendship_id} className="saved-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.display_name}</div>
+                                                    <div style={{ fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.email} • Pending</div>
                                                 </div>
-                                                <button className="small-btn" onClick={() => respondToRequest(req.friendship_id, false)}>
+                                                <button className="small-btn" style={{ flexShrink: 0 }} onClick={() => respondToRequest(req.friendship_id, false)}>
                                                     Cancel
                                                 </button>
                                             </div>

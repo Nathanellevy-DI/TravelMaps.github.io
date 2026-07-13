@@ -11,7 +11,7 @@
  * Files are stored as Base64 data URIs in IndexedDB.
  */
 import { useState, useEffect } from 'react';
-import { X, Lock, Clock, FileText, MapPin, Upload, Edit2 } from 'lucide-react';
+import { X, Lock, Clock, FileText, MapPin, Upload, Edit2, Trash2 } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
 import ImageLightbox from '../UI/ImageLightbox';
 import { useDialog } from '../../hooks/useDialog.jsx';
@@ -24,7 +24,7 @@ import SecureImageUpload from '../Media/SecureImageUpload';
  */
 export default function PlaceDetailsModal({ placeId, onClose }) {
     // Pull place management functions from context
-    const { getPlace, submitRequest, approvePlace, categories, addCategory, updatePlaceCategory, refreshPlaces } = usePlaces();
+    const { getPlace, submitRequest, approvePlace, categories, addCategory, updatePlaceCategory, refreshPlaces, removeMedia } = usePlaces();
     const place = getPlace(placeId);
     // DialogComponent renders the custom confirm/alert dialog when triggered
     const { DialogComponent } = useDialog();
@@ -215,28 +215,72 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
                             </div>
 
                             {/* Secure Media Grid */}
-                            <div style={{ flex: 1, overflowY: 'auto' }}>
-                                <h4 style={{ marginBottom: '12px' }}>📸 Secure Photos</h4>
+                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <h4 style={{ margin: '0 0 4px 0', textAlign: 'left' }}>🗺️ Place Memories & Media</h4>
                                 {!place.media || place.media.length === 0 ? (
-                                    <div className="empty-state">No photos uploaded yet.</div>
+                                    <div className="empty-state" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)', background: 'rgba(0,0,0,0.1)', borderRadius: '8px' }}>
+                                        No memories saved yet. Add notes, photos, videos, or record a voice note below!
+                                    </div>
                                 ) : (
-                                    <div className="memories-grid">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                         {place.media.map(m => (
-                                            <div key={m.id} className="memory-card">
-                                                <div className="memory-date" style={{textTransform: 'uppercase', fontSize: '10px', background: 'var(--accent)', color: 'white', padding: '2px 6px', borderRadius: '4px'}}>
-                                                    Tier {m.tier}
+                                            <div key={m.id} className="memory-card" style={{ background: 'var(--surface)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span className="badge" style={{ fontSize: '10px', padding: '2px 8px', background: m.tier === 1 ? '#ff6961' : m.tier === 2 ? '#3ea6ff' : '#2ecc71', color: 'white' }}>
+                                                        {m.tier === 1 ? 'Private' : m.tier === 2 ? 'Group' : 'Public'}
+                                                    </span>
+                                                    <button 
+                                                        className="icon-btn danger" 
+                                                        onClick={() => removeMedia(placeId, m.id)} 
+                                                        style={{ padding: '4px', opacity: 0.7, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </div>
-                                                
-                                                {mediaUrls[m.id] ? (
+
+                                                {/* Text Note rendering */}
+                                                {m.type === 'text/plain' && (
+                                                    <div style={{ fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--text-main)', textAlign: 'left', background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px' }}>
+                                                        {m.dataUrl}
+                                                    </div>
+                                                )}
+
+                                                {/* Image rendering */}
+                                                {m.type && m.type.startsWith('image/') && (
                                                     <img
-                                                        src={mediaUrls[m.id]}
-                                                        alt="Secure Media"
-                                                        onClick={() => setLightboxImage(mediaUrls[m.id])}
-                                                        style={{ cursor: 'pointer', width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginTop: '8px' }}
+                                                        src={m.dataUrl}
+                                                        alt="Saved memory"
+                                                        onClick={() => setLightboxImage(m.dataUrl)}
+                                                        style={{ cursor: 'pointer', width: '100%', maxHeight: '250px', objectFit: 'cover', borderRadius: '8px' }}
                                                     />
-                                                ) : (
-                                                    <div style={{ width: '100%', height: '150px', background: 'var(--glass)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', marginTop: '8px' }}>
-                                                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Decrypting...</span>
+                                                )}
+
+                                                {/* Video rendering */}
+                                                {m.type && m.type.startsWith('video/') && (
+                                                    <video
+                                                        src={m.dataUrl}
+                                                        controls
+                                                        style={{ width: '100%', maxHeight: '250px', background: 'black', borderRadius: '8px' }}
+                                                    />
+                                                )}
+
+                                                {/* Audio / Voice rendering */}
+                                                {m.type && m.type.startsWith('audio/') && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textAlign: 'left' }}>
+                                                            {m.name || 'Voice Note'}
+                                                        </div>
+                                                        <audio
+                                                            src={m.dataUrl}
+                                                            controls
+                                                            style={{ width: '100%' }}
+                                                        />
+                                                    </div>
+                                                )}
+                                                
+                                                {m.created_at && (
+                                                    <div style={{ fontSize: '10px', color: 'var(--muted)', textAlign: 'right' }}>
+                                                        {new Date(m.created_at).toLocaleDateString()} {new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                     </div>
                                                 )}
                                             </div>
