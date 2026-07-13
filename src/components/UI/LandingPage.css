@@ -102,7 +102,8 @@
 /* Hero Section */
 .landing-hero-section {
     position: relative;
-    padding: clamp(4rem, 15vh, 10rem) clamp(1rem, 5vw, 4rem);
+    min-height: 65vh;
+    padding: clamp(5rem, 18vh, 12rem) clamp(1rem, 5vw, 4rem);
     display: flex;
     align-items: center;
     background: #F5F2EB;
