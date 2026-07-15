@@ -66,11 +66,19 @@ export function PlacesProvider({ children, user }) {
                 });
                 if (response.ok) {
                     const serverPlaces = await response.json();
-                    setSavedPlaces(serverPlaces);
+                    const formattedPlaces = serverPlaces.map(p => {
+                        const isOwnPlace = p.user_id === userIdKey;
+                        return {
+                            ...p,
+                            isShared: !isOwnPlace,
+                            sharedBy: !isOwnPlace ? { username: p.profile?.display_name || 'Friend' } : null
+                        };
+                    });
+                    setSavedPlaces(formattedPlaces);
                     
                     // Cache to IndexedDB for offline access
                     const data = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
-                    await saveUserData(userIdKey, { ...data, savedPlaces: serverPlaces });
+                    await saveUserData(userIdKey, { ...data, savedPlaces: formattedPlaces });
                     setIsLoaded(true);
                     return;
                 }

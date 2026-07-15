@@ -208,15 +208,19 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                     <button className="small-btn" title="Details" onClick={() => handleOpenDetails(place.id)}>
                                         <Camera size={14} />
                                     </button>
-                                    <button className="small-btn" title="Share" onClick={() => handleSharePin(place)}>
-                                        <Share2 size={14} />
-                                    </button>
+                                    {!place.isShared && (
+                                        <button className="small-btn" title="Share" onClick={() => handleSharePin(place)}>
+                                            <Share2 size={14} />
+                                        </button>
+                                    )}
                                     <button className="small-btn" title="Go" onClick={() => handleGoTo(place)}>
                                         <MapPin size={14} />
                                     </button>
-                                    <button className="small-btn" title="Delete" onClick={() => removePlace(place.id)}>
-                                        <Trash2 size={14} />
-                                    </button>
+                                    {!place.isShared && (
+                                        <button className="small-btn danger" title="Delete" onClick={() => removePlace(place.id)}>
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))
