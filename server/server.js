@@ -25,6 +25,74 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 });
 
 async function sendInvitationEmail(toEmail) {
+    const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 24px; border: 1px solid #E5E1DE; border-radius: 16px; background-color: #fcfbfa; color: #5C4F4A; line-height: 1.6; box-shadow: 0 4px 12px rgba(92, 79, 74, 0.05);">
+            <div style="text-align: center; margin-bottom: 32px;">
+                <!-- Elegant Custom Brand Pin Icon -->
+                <div style="background-color: #5C766D; display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 20px; margin: 0 auto; box-shadow: 0 10px 25px -5px rgba(92, 118, 109, 0.35);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="#C9996B" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3" fill="#ffffff"></circle>
+                    </svg>
+                </div>
+                <h2 style="color: #5C4F4A; font-size: 26px; font-weight: 800; margin-top: 20px; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.5px;">Welcome to TravelMaps</h2>
+                <p style="color: #8b807b; font-size: 14px; margin: 0;">Your private window to documenting and sharing journeys.</p>
+            </div>
+            
+            <p style="font-size: 16px; margin-bottom: 16px; font-weight: 600;">Hello,</p>
+            <p style="font-size: 16px; margin-bottom: 24px;">Good news! Your email request on our waitlist has been approved. You are now officially invited to join TravelMaps.</p>
+            
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="https://travelmaps.world/#/secret-signup" style="background-color: #5C766D; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block; box-shadow: 0 10px 20px -5px rgba(92, 118, 109, 0.4); font-size: 15px; transition: all 0.2s ease;">
+                    Create Your Account
+                </a>
+            </div>
+            
+            <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
+                If the button doesn't work, copy and paste this link in your browser:<br/>
+                <a href="https://travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://travelmaps.world/#/secret-signup</a>
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
+            <p style="font-size: 12px; color: #8b807b; text-align: center; margin: 0;">
+                This invitation was generated for ${toEmail}. If you did not request to join, please disregard this message.
+            </p>
+        </div>
+    `;
+
+    // 1. If Resend API Key is set, try sending via Resend HTTP API directly (extremely reliable)
+    if (process.env.RESEND_API_KEY) {
+        try {
+            console.log('Sending email via Resend API...');
+            const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+            const response = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    from,
+                    to: toEmail,
+                    subject: 'You have been invited to join TravelMaps!',
+                    html: htmlContent
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Resend API failed: ${errText}`);
+            }
+
+            const data = await response.json();
+            console.log(`Invitation email sent successfully to ${toEmail} via Resend API:`, data);
+            return;
+        } catch (err) {
+            console.error('Error sending email via Resend API, falling back to SMTP:', err.message);
+        }
+    }
+
+    // 2. Fallback to standard SMTP (e.g. mail.ru)
     const host = process.env.EMAIL_HOST;
     const port = process.env.EMAIL_PORT || 465;
     const user = process.env.EMAIL_USER;
@@ -47,44 +115,11 @@ async function sendInvitationEmail(toEmail) {
         from,
         to: toEmail,
         subject: 'You have been invited to join TravelMaps!',
-        html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 24px; border: 1px solid #E5E1DE; border-radius: 16px; background-color: #fcfbfa; color: #5C4F4A; line-height: 1.6; box-shadow: 0 4px 12px rgba(92, 79, 74, 0.05);">
-                <div style="text-align: center; margin-bottom: 32px;">
-                    <!-- Elegant Custom Brand Pin Icon -->
-                    <div style="background-color: #5C766D; display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 20px; margin: 0 auto; box-shadow: 0 10px 25px -5px rgba(92, 118, 109, 0.35);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="#C9996B" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                            <circle cx="12" cy="10" r="3" fill="#ffffff"></circle>
-                        </svg>
-                    </div>
-                    <h2 style="color: #5C4F4A; font-size: 26px; font-weight: 800; margin-top: 20px; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.5px;">Welcome to TravelMaps</h2>
-                    <p style="color: #8b807b; font-size: 14px; margin: 0;">Your private window to documenting and sharing journeys.</p>
-                </div>
-                
-                <p style="font-size: 16px; margin-bottom: 16px; font-weight: 600;">Hello,</p>
-                <p style="font-size: 16px; margin-bottom: 24px;">Good news! Your email request on our waitlist has been approved. You are now officially invited to join TravelMaps.</p>
-                
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://travelmaps.world/?register=true" style="background-color: #5C766D; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block; box-shadow: 0 10px 20px -5px rgba(92, 118, 109, 0.4); font-size: 15px; transition: all 0.2s ease;">
-                        Create Your Account
-                    </a>
-                </div>
-                
-                <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
-                    If the button doesn't work, copy and paste this link in your browser:<br/>
-                    <a href="https://travelmaps.world/?register=true" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://travelmaps.world/?register=true</a>
-                </p>
-                
-                <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
-                <p style="font-size: 12px; color: #8b807b; text-align: center; margin: 0;">
-                    This invitation was generated for ${toEmail}. If you did not request to join, please disregard this message.
-                </p>
-            </div>
-        `
+        html: htmlContent
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Invitation email sent successfully to ${toEmail}`);
+    console.log(`Invitation email sent successfully to ${toEmail} via SMTP`);
 }
 
 // Media Encryption Setup
