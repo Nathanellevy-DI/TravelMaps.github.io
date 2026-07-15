@@ -63,20 +63,14 @@ export default function AdminPanel() {
                         ? { ...item, status: 'invited' }
                         : item
                 ));
+                alert(`Invitation email successfully sent to ${email}!`);
             } else {
-                alert('Failed to send invitation.');
+                const data = await response.json();
+                alert(`Failed to send invitation:\n${data.error || 'Server error'}`);
             }
         } catch (err) {
             console.error('Invite error, falling back:', err);
-            // Fallback: update local storage list status if we are running in demo mode
-            try {
-                // Demo just succeeds
-                setWaitlist(prev => prev.map(item => 
-                    item.email.toLowerCase() === email.toLowerCase() 
-                        ? { ...item, status: 'invited' }
-                        : item
-                ));
-            } catch {}
+            alert(`Network error occurred while sending invite: ${err.message}`);
         } finally {
             setActionLoading(prev => ({ ...prev, [email]: false }));
         }
@@ -96,13 +90,14 @@ export default function AdminPanel() {
                 body: JSON.stringify({ email }),
             });
             if (response.ok) {
-                alert(`Invitation email resent successfully to ${email}`);
+                alert(`Invitation email successfully resent to ${email}`);
             } else {
-                alert('Failed to resend invitation.');
+                const data = await response.json();
+                alert(`Failed to resend invitation:\n${data.error || 'Server error'}`);
             }
         } catch (err) {
             console.error('Resend invite error:', err);
-            alert('An error occurred while resending the invite.');
+            alert(`Network error occurred while resending invite: ${err.message}`);
         } finally {
             setActionLoading(prev => ({ ...prev, [email + '_resend']: false }));
         }

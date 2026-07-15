@@ -60,6 +60,8 @@ async function sendInvitationEmail(toEmail) {
         </div>
     `;
 
+    let resendError = null;
+
     // 1. If Resend API Key is set, try sending via Resend HTTP API directly (extremely reliable)
     if (process.env.RESEND_API_KEY) {
         try {
@@ -89,6 +91,7 @@ async function sendInvitationEmail(toEmail) {
             return;
         } catch (err) {
             console.error('Error sending email via Resend API, falling back to SMTP:', err.message);
+            resendError = err;
         }
     }
 
@@ -101,25 +104,37 @@ async function sendInvitationEmail(toEmail) {
 
     if (!user || !pass || !host) {
         console.warn('SMTP credentials not configured in environment. Skipping email dispatch.');
-        return;
+        if (resendError) {
+            throw new Error(`Email dispatch failed. Resend error: ${resendError.message}. SMTP not configured.`);
+        } else {
+            throw new Error('Email dispatch failed: No email sender (Resend or SMTP) is configured.');
+        }
     }
 
-    const transporter = nodemailer.createTransport({
-        host,
-        port: parseInt(port),
-        secure: parseInt(port) === 465,
-        auth: { user, pass }
-    });
+    try {
+        const transporter = nodemailer.createTransport({
+            host,
+            port: parseInt(port),
+            secure: parseInt(port) === 465,
+            auth: { user, pass }
+        });
 
-    const mailOptions = {
-        from,
-        to: toEmail,
-        subject: 'You have been invited to join TravelMaps!',
-        html: htmlContent
-    };
+        const mailOptions = {
+            from,
+            to: toEmail,
+            subject: 'You have been invited to join TravelMaps!',
+            html: htmlContent
+        };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`Invitation email sent successfully to ${toEmail} via SMTP`);
+        await transporter.sendMail(mailOptions);
+        console.log(`Invitation email sent successfully to ${toEmail} via SMTP`);
+    } catch (smtpErr) {
+        if (resendError) {
+            throw new Error(`Email dispatch failed. Resend error: ${resendError.message}. SMTP error: ${smtpErr.message}`);
+        } else {
+            throw new Error(`SMTP email dispatch failed: ${smtpErr.message}`);
+        }
+    }
 }
 
 // Media Encryption Setup
@@ -301,18 +316,17 @@ app.post('/api/admin/waitlist/invite', authenticateToken, async (req, res) => {
     
     const inviteEmail = email.toLowerCase().trim();
     try {
+        // Send email first to guarantee it delivers successfully
+        await sendInvitationEmail(inviteEmail);
+
         await pool.query(
             `UPDATE waitlist SET status = 'invited' WHERE email = $1`,
             [inviteEmail]
         );
 
-        // Send email in the background so API stays fast and resilient
-        sendInvitationEmail(inviteEmail).catch(err => {
-            console.error('Failed to send invitation email:', err.message);
-        });
-
         res.json({ success: true });
     } catch (err) {
+        console.error('Failed to send invitation email:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -326,13 +340,10 @@ app.post('/api/admin/waitlist/resend-invite', authenticateToken, async (req, res
     
     const inviteEmail = email.toLowerCase().trim();
     try {
-        // Send email in the background
-        sendInvitationEmail(inviteEmail).catch(err => {
-            console.error('Failed to resend invitation email:', err.message);
-        });
-
+        await sendInvitationEmail(inviteEmail);
         res.json({ success: true });
     } catch (err) {
+        console.error('Failed to resend invitation email:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
