@@ -197,7 +197,15 @@ app.get('/api/admin/waitlist', authenticateToken, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
     }
     try {
-        const { rows } = await pool.query(`SELECT * FROM waitlist ORDER BY created_at DESC`);
+        const query = `
+            SELECT w.*, 
+                   CASE WHEN u.id IS NOT NULL THEN true ELSE false END as has_account,
+                   u.created_at as registered_at
+            FROM waitlist w
+            LEFT JOIN users u ON LOWER(w.email) = LOWER(u.email)
+            ORDER BY w.created_at DESC
+        `;
+        const { rows } = await pool.query(query);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -221,6 +229,26 @@ app.post('/api/admin/waitlist/invite', authenticateToken, async (req, res) => {
         // Send email in the background so API stays fast and resilient
         sendInvitationEmail(inviteEmail).catch(err => {
             console.error('Failed to send invitation email:', err.message);
+        });
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/waitlist/resend-invite', authenticateToken, async (req, res) => {
+    if (req.user.email.toLowerCase() !== 'travelmaps@inbox.ru') {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    
+    const inviteEmail = email.toLowerCase().trim();
+    try {
+        // Send email in the background
+        sendInvitationEmail(inviteEmail).catch(err => {
+            console.error('Failed to resend invitation email:', err.message);
         });
 
         res.json({ success: true });

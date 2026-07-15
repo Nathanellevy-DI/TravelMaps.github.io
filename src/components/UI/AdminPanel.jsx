@@ -82,6 +82,32 @@ export default function AdminPanel() {
         }
     };
 
+    const handleResendInvite = async (email) => {
+        setActionLoading(prev => ({ ...prev, [email + '_resend']: true }));
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            const response = await fetch(`${apiUrl}/api/admin/waitlist/resend-invite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ email }),
+            });
+            if (response.ok) {
+                alert(`Invitation email resent successfully to ${email}`);
+            } else {
+                alert('Failed to resend invitation.');
+            }
+        } catch (err) {
+            console.error('Resend invite error:', err);
+            alert('An error occurred while resending the invite.');
+        } finally {
+            setActionLoading(prev => ({ ...prev, [email + '_resend']: false }));
+        }
+    };
+
     const filteredList = waitlist.filter(item => 
         item.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -148,6 +174,7 @@ export default function AdminPanel() {
                                 <th style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Email Address</th>
                                 <th style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Signed Up</th>
                                 <th style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Status</th>
+                                <th style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>Account</th>
                                 <th style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
@@ -175,6 +202,21 @@ export default function AdminPanel() {
                                             {item.status === 'invited' ? 'Invited' : 'Pending'}
                                         </span>
                                     </td>
+                                    <td style={{ padding: '14px 16px' }}>
+                                        <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '12px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            background: item.has_account ? 'rgba(46, 125, 50, 0.1)' : 'rgba(239, 108, 0, 0.1)',
+                                            color: item.has_account ? '#2E7D32' : '#EF6C00'
+                                        }}>
+                                            {item.has_account ? 'Registered' : 'Not Registered'}
+                                        </span>
+                                    </td>
                                     <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                                         {item.status === 'pending' ? (
                                             <button
@@ -197,10 +239,31 @@ export default function AdminPanel() {
                                                 <UserPlus size={12} />
                                                 {actionLoading[item.email] ? 'Inviting...' : 'Invite User'}
                                             </button>
+                                        ) : !item.has_account ? (
+                                            <button
+                                                onClick={() => handleResendInvite(item.email)}
+                                                disabled={actionLoading[item.email + '_resend']}
+                                                className="flat-cta-btn"
+                                                style={{ 
+                                                    padding: '6px 12px', 
+                                                    fontSize: '11px', 
+                                                    background: '#EF6C00',
+                                                    color: '#FFF', 
+                                                    border: 'none',
+                                                    borderRadius: '4px', 
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}
+                                            >
+                                                <Mail size={12} />
+                                                {actionLoading[item.email + '_resend'] ? 'Sending...' : 'Resend Email'}
+                                            </button>
                                         ) : (
                                             <span style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
                                                 <ShieldCheck size={14} style={{ color: '#2E7D32' }} />
-                                                Approved
+                                                Active User
                                             </span>
                                         )}
                                     </td>
