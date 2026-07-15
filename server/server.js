@@ -9,12 +9,15 @@ const crypto = require('crypto');
 const multer = require('multer');
 const pool = require('./database');
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 // Supabase Client for Storage
 const supabaseUrl = process.env.SUPABASE_URL || 'https://ufzsywuiohxmlmatkamo.supabase.co';
 const supabaseKey = process.env.SUPABASE_KEY || 'sb_publishable_feY3ssoaZMKtXcNqbZ1GrQ_o59UPHZK';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+    realtime: { transport: WebSocket }
+});
 
 // Media Encryption Setup
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32); // Must be exactly 32 bytes string for aes-256-cbc. Fallback for dev.
