@@ -50,7 +50,7 @@ async function sendInvitationEmail(toEmail) {
             
             <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
                 If the button doesn't work, copy and paste this link in your browser:<br/>
-                <a href="https://www.travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://www.travelmaps.world/#/secret-signup</a>
+                <a href="https://www.travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">www.travelmaps.world/#/secret-signup</a>
             </p>
             
             <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
