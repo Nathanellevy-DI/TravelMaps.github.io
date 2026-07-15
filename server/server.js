@@ -43,14 +43,14 @@ async function sendInvitationEmail(toEmail) {
             <p style="font-size: 16px; margin-bottom: 24px;">Good news! Your email request on our waitlist has been approved. You are now officially invited to join TravelMaps.</p>
             
             <div style="text-align: center; margin: 32px 0;">
-                <a href="https://travelmaps.world/#/secret-signup" style="background-color: #5C766D; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block; box-shadow: 0 10px 20px -5px rgba(92, 118, 109, 0.4); font-size: 15px; transition: all 0.2s ease;">
+                <a href="https://www.travelmaps.world/#/secret-signup" style="background-color: #5C766D; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block; box-shadow: 0 10px 20px -5px rgba(92, 118, 109, 0.4); font-size: 15px; transition: all 0.2s ease;">
                     Create Your Account
                 </a>
             </div>
             
             <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
                 If the button doesn't work, copy and paste this link in your browser:<br/>
-                <a href="https://travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://travelmaps.world/#/secret-signup</a>
+                <a href="https://www.travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://www.travelmaps.world/#/secret-signup</a>
             </p>
             
             <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
