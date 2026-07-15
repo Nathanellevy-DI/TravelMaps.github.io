@@ -19,6 +19,7 @@ import { usePlaces } from '../../contexts/PlacesContext';
 import { exportBackup, importBackup } from '../../utils/backup';
 import FriendsContent from './FriendsContent';
 import ShareModal from '../Modals/ShareModal';
+import AdminPanel from './AdminPanel';
 
 /**
  * @param {Object}   props
@@ -112,7 +113,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                 flex: 1, padding: '12px 0', background: 'transparent', border: 'none',
                                 borderBottom: activeSidebarTab === 'places' ? '2px solid var(--accent)' : '2px solid transparent',
                                 color: activeSidebarTab === 'places' ? 'var(--accent)' : 'var(--muted)',
-                                fontWeight: 600, cursor: 'pointer'
+                                fontWeight: 600, cursor: 'pointer', fontSize: '13px'
                             }}
                         >
                             Places
@@ -123,11 +124,24 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                 flex: 1, padding: '12px 0', background: 'transparent', border: 'none',
                                 borderBottom: activeSidebarTab === 'friends' ? '2px solid var(--accent)' : '2px solid transparent',
                                 color: activeSidebarTab === 'friends' ? 'var(--accent)' : 'var(--muted)',
-                                fontWeight: 600, cursor: 'pointer'
+                                fontWeight: 600, cursor: 'pointer', fontSize: '13px'
                             }}
                         >
                             Friends
                         </button>
+                        {user?.email?.toLowerCase() === 'travelmaps@inbox.ru' && (
+                            <button
+                                onClick={() => setActiveSidebarTab('admin')}
+                                style={{
+                                    flex: 1, padding: '12px 0', background: 'transparent', border: 'none',
+                                    borderBottom: activeSidebarTab === 'admin' ? '2px solid var(--accent)' : '2px solid transparent',
+                                    color: activeSidebarTab === 'admin' ? 'var(--accent)' : 'var(--muted)',
+                                    fontWeight: 600, cursor: 'pointer', fontSize: '13px'
+                                }}
+                             >
+                                 Admin
+                             </button>
+                        )}
                     </div>
                 </div>
 
@@ -209,8 +223,10 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                     )}
                     </div>
                     </>
-                    ) : (
+                    ) : activeSidebarTab === 'friends' ? (
                         <FriendsContent user={user} />
+                    ) : (
+                        <AdminPanel />
                     )}
                 </div>
                 <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto' }}>

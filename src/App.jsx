@@ -190,7 +190,7 @@ function AppContent() {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           map={map}
-          user={displayName}
+          user={user}
           theme={theme}
           toggleTheme={toggleTheme}
         />

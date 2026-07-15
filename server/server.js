@@ -52,9 +52,33 @@ function authenticateToken(req, res, next) {
 
 // --- Auth Routes ---
 
+app.post('/api/waitlist/join', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    try {
+        await pool.query(
+            `INSERT INTO waitlist (email, status) VALUES ($1, 'pending') ON CONFLICT (email) DO NOTHING`,
+            [email.toLowerCase().trim()]
+        );
+        res.json({ success: true, message: 'Joined waitlist successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/auth/register', async (req, res) => {
     const { email, password, display_name } = req.body;
     try {
+        // Waitlist check
+        const { rows: waitlistRows } = await pool.query(
+            `SELECT * FROM waitlist WHERE email = $1`,
+            [email.toLowerCase().trim()]
+        );
+        const waitlistEntry = waitlistRows[0];
+        if (!waitlistEntry || waitlistEntry.status !== 'invited') {
+            return res.status(403).json({ error: 'This email has not been invited to register yet.' });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const id = uuidv4();
         const name = display_name || email.split('@')[0];
@@ -97,6 +121,37 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, (req, res) => {
     res.json({ user: req.user });
+});
+
+// --- Admin Waitlist Routes ---
+
+app.get('/api/admin/waitlist', authenticateToken, async (req, res) => {
+    if (req.user.email.toLowerCase() !== 'travelmaps@inbox.ru') {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    try {
+        const { rows } = await pool.query(`SELECT * FROM waitlist ORDER BY created_at DESC`);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/waitlist/invite', authenticateToken, async (req, res) => {
+    if (req.user.email.toLowerCase() !== 'travelmaps@inbox.ru') {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    try {
+        await pool.query(
+            `UPDATE waitlist SET status = 'invited' WHERE email = $1`,
+            [email.toLowerCase().trim()]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // --- Places Routes ---

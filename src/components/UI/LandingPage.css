@@ -378,3 +378,56 @@
         padding-top: 3rem;
     }
 }
+
+/* Waitlist Form Styles */
+.waitlist-form-hero {
+    display: flex;
+    gap: 0.75rem;
+    max-width: 500px;
+    width: 100%;
+    margin-top: 1.5rem;
+}
+
+.waitlist-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.85rem 1.25rem;
+    font-size: 0.95rem;
+    background: #FFFFFF;
+    border: 1px solid rgba(30, 34, 41, 0.15);
+    border-radius: 4px;
+    color: #1E2229;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.waitlist-input:focus {
+    outline: none;
+    border-color: #4F635A;
+    box-shadow: 0 0 0 2px rgba(79, 99, 90, 0.1);
+}
+
+.waitlist-message {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.waitlist-message.success {
+    color: #2E7D32;
+}
+
+.waitlist-message.error {
+    color: #C62828;
+}
+
+.waitlist-message.light {
+    color: #FAF8F5;
+}
+
+@media (max-width: 480px) {
+    .waitlist-form-hero {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}

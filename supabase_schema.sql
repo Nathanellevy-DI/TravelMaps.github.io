@@ -5,6 +5,7 @@ drop table if exists public.notifications cascade;
 drop table if exists public.places cascade;
 drop table if exists public.friends cascade;
 drop table if exists public.profiles cascade;
+drop table if exists public.waitlist cascade;
 
 -- Enable UUID extension just in case
 create extension if not exists "uuid-ossp";
@@ -127,3 +128,24 @@ drop policy if exists "Update own notifications" on public.notifications;
 create policy "Update own notifications" on public.notifications for update using (auth.uid() = user_id);
 drop policy if exists "Insert notifications" on public.notifications;
 create policy "Insert notifications" on public.notifications for insert with check (auth.uid() = actor_id); -- For simplicity
+
+-- 5. Waitlist Table
+create table if not exists public.waitlist (
+  id uuid default uuid_generate_v4() primary key,
+  email text unique not null,
+  status text check (status in ('pending', 'invited')) default 'pending',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.waitlist enable row level security;
+drop policy if exists "Anyone can join waitlist" on public.waitlist;
+create policy "Anyone can join waitlist" on public.waitlist for insert with check (true);
+drop policy if exists "Admin can view waitlist" on public.waitlist;
+create policy "Admin can view waitlist" on public.waitlist for select using (true);
+drop policy if exists "Admin can update waitlist" on public.waitlist;
+create policy "Admin can update waitlist" on public.waitlist for update using (true);
+
+-- Seed admin email in waitlist so they can sign up immediately
+insert into public.waitlist (email, status) 
+values ('travelmaps@inbox.ru', 'invited')
+on conflict (email) do nothing;

@@ -1,12 +1,67 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Map, Shield, Edit, Heart, Eye, Mail } from 'lucide-react';
 import './LandingPage.css';
+import PrivacyPolicyModal from './PrivacyPolicyModal';
 
 export default function LandingPage({ onEnterLogin, onEnterRegister }) {
+    const [email, setEmail] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState('');
+    const [isError, setIsError] = useState(false);
+    const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+
     const scrollToSection = (id) => {
         const element = document.getElementById(id);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
+    const handleJoinWaitlist = async (e) => {
+        e.preventDefault();
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail) return;
+
+        setLoading(true);
+        setMessage('');
+        setIsError(false);
+
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${apiUrl}/api/waitlist/join`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email: trimmedEmail }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                setMessage('Successfully joined the waitlist! We will notify you when invited.');
+                setEmail('');
+            } else {
+                setMessage(data.error || 'Failed to join waitlist.');
+                setIsError(true);
+            }
+        } catch (err) {
+            console.error('Waitlist API error, falling back:', err);
+            // Local fallback
+            try {
+                const localList = JSON.parse(localStorage.getItem('travelmaps_waitlist') || '[]');
+                const lower = trimmedEmail.toLowerCase();
+                if (!localList.includes(lower)) {
+                    localList.push(lower);
+                    localStorage.setItem('travelmaps_waitlist', JSON.stringify(localList));
+                }
+                setMessage('Successfully joined the waitlist!');
+                setEmail('');
+            } catch (fallbackErr) {
+                setMessage('An error occurred. Please try again.');
+                setIsError(true);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -25,7 +80,7 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                 </nav>
                 <div className="landing-header-actions">
                     <button className="nav-action-btn secondary-flat" onClick={onEnterLogin}>Log In</button>
-                    <button className="nav-action-btn primary-flat" onClick={onEnterRegister}>Sign Up</button>
+                    <button className="nav-action-btn primary-flat" onClick={() => scrollToSection('overview')}>Join Waitlist</button>
                 </div>
             </header>
 
@@ -41,9 +96,25 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                         TravelMaps is a private, interactive mapping platform designed for explorers to document their journeys. 
                         Securely store your data locally while offering selective sharing with a trusted social circle.
                     </p>
-                    <button className="flat-cta-btn" onClick={onEnterRegister}>
-                        START MAPPING
-                    </button>
+                    
+                    <form onSubmit={handleJoinWaitlist} className="waitlist-form-hero">
+                        <input 
+                            type="email" 
+                            placeholder="Enter your email to join the waitlist..." 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="waitlist-input"
+                            required
+                        />
+                        <button type="submit" className="flat-cta-btn" disabled={loading}>
+                            {loading ? 'JOINING...' : 'JOIN WAITLIST'}
+                        </button>
+                    </form>
+                    {message && (
+                        <p className={`waitlist-message ${isError ? 'error' : 'success'}`}>
+                            {message}
+                        </p>
+                    )}
                 </div>
             </section>
 
@@ -68,8 +139,8 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                         </div>
                         <div className="platform-feature-card">
                             <div className="platform-feature-num">03</div>
-                            <h3>Offline Privacy First</h3>
-                            <p>All database records and file uploads are saved directly inside your browser's local IndexedDB. Safe, offline, and completely under your control.</p>
+                            <h3>Privacy-First Storage</h3>
+                            <p>All database records and file uploads are saved directly inside your browser's local storage. Safe, secure, and completely under your control.</p>
                         </div>
                     </div>
                 </div>
@@ -110,9 +181,20 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                 <div className="section-container">
                     <h2>Ready to map your journey?</h2>
                     <p>Join a selective market of explorers documenting their adventures securely.</p>
-                    <button className="flat-cta-btn centered" onClick={onEnterRegister}>
-                        GET STARTED
-                    </button>
+                    
+                    <form onSubmit={handleJoinWaitlist} className="waitlist-form-hero" style={{ margin: '2rem auto 0', justifyContent: 'center' }}>
+                        <input 
+                            type="email" 
+                            placeholder="Enter your email to join the waitlist..." 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="waitlist-input"
+                            required
+                        />
+                        <button type="submit" className="flat-cta-btn centered" disabled={loading}>
+                            {loading ? 'JOINING...' : 'JOIN WAITLIST'}
+                        </button>
+                    </form>
                 </div>
             </section>
 
@@ -136,10 +218,17 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                         </div>
                     </div>
                 </div>
-                <div className="footer-bottom-bar">
+                <div className="footer-bottom-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     <span>&copy; {new Date().getFullYear()} TravelMaps. All rights reserved.</span>
+                    <button 
+                        onClick={() => setShowPrivacyPolicy(true)} 
+                        style={{ background: 'transparent', border: 'none', color: 'rgba(250, 248, 245, 0.5)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                    >
+                        Privacy Policy
+                    </button>
                 </div>
             </footer>
+            <PrivacyPolicyModal isOpen={showPrivacyPolicy} onClose={() => setShowPrivacyPolicy(false)} />
         </div>
     );
 }

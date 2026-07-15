@@ -22,15 +22,29 @@ export function AuthProvider({ children }) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const initAuth = () => {
-            try {
-                const currentUserStr = localStorage.getItem('travelmaps_current_user');
-                if (currentUserStr) {
-                    setUser(JSON.parse(currentUserStr));
+        const initAuth = async () => {
+            const token = localStorage.getItem('travelmaps_token');
+            const currentUserStr = localStorage.getItem('travelmaps_current_user');
+            if (token && currentUserStr) {
+                try {
+                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                    const response = await fetch(`${apiUrl}/api/auth/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        setUser(data.user);
+                    } else {
+                        throw new Error('Token verification failed');
+                    }
+                } catch (err) {
+                    console.error('Auth error on load:', err);
+                    localStorage.removeItem('travelmaps_current_user');
+                    localStorage.removeItem('travelmaps_token');
+                    setUser(null);
                 }
-            } catch (err) {
-                console.error('Auth error on load:', err);
-                localStorage.removeItem('travelmaps_current_user');
             }
             setIsLoading(false);
         };
@@ -41,22 +55,24 @@ export function AuthProvider({ children }) {
         setError(null);
         setIsLoading(true);
         try {
-            const users = getLocalUsers();
-            const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-            
-            if (!foundUser) {
-                throw new Error('User not found');
-            }
-            if (foundUser.password !== password) {
-                throw new Error('Invalid password');
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${apiUrl}/api/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email.trim(), password })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
             }
 
-            const sessionUser = { id: foundUser.id, email: foundUser.email, name: foundUser.name };
-            localStorage.setItem('travelmaps_current_user', JSON.stringify(sessionUser));
-            localStorage.setItem('travelmaps_token', 'mock_token_' + foundUser.id);
-            setUser(sessionUser);
+            localStorage.setItem('travelmaps_current_user', JSON.stringify(data.user));
+            localStorage.setItem('travelmaps_token', data.token);
+            setUser(data.user);
             setIsLoading(false);
-            return { data: { user: sessionUser }, error: null };
+            return { data: { user: data.user }, error: null };
         } catch (err) {
             setError(err.message);
             setIsLoading(false);
@@ -68,25 +84,24 @@ export function AuthProvider({ children }) {
         setError(null);
         setIsLoading(true);
         try {
-            const users = getLocalUsers();
-            const exists = users.some(u => u.email.toLowerCase() === email.toLowerCase());
-            if (exists) {
-                throw new Error('Email already exists');
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${apiUrl}/api/auth/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email.trim(), password, display_name: displayName })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration failed');
             }
 
-            const newId = 'u_' + Date.now();
-            const name = displayName || email.split('@')[0];
-            const newUser = { id: newId, email, password, name };
-            
-            users.push(newUser);
-            saveLocalUsers(users);
-
-            const sessionUser = { id: newId, email, name };
-            localStorage.setItem('travelmaps_current_user', JSON.stringify(sessionUser));
-            localStorage.setItem('travelmaps_token', 'mock_token_' + newId);
-            setUser(sessionUser);
+            localStorage.setItem('travelmaps_current_user', JSON.stringify(data.user));
+            localStorage.setItem('travelmaps_token', data.token);
+            setUser(data.user);
             setIsLoading(false);
-            return { data: { user: sessionUser }, error: null };
+            return { data: { user: data.user }, error: null };
         } catch (err) {
             setError(err.message);
             setIsLoading(false);
