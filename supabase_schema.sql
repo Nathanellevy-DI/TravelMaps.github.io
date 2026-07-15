@@ -1,10 +1,16 @@
 -- SQL Schema for TravelMaps Supabase Setup
 
+-- Drop existing tables to ensure clean schema recreate
+drop table if exists public.notifications cascade;
+drop table if exists public.places cascade;
+drop table if exists public.friends cascade;
+drop table if exists public.profiles cascade;
+
 -- Enable UUID extension just in case
 create extension if not exists "uuid-ossp";
 
 -- 1. Profiles Table (extends auth.users)
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid references auth.users not null primary key,
   display_name text,
   email text,
@@ -14,8 +20,11 @@ create table public.profiles (
 
 -- Turn on Row Level Security (RLS)
 alter table public.profiles enable row level security;
+drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
 create policy "Public profiles are viewable by everyone." on public.profiles for select using (true);
+drop policy if exists "Users can update own profile." on public.profiles;
 create policy "Users can update own profile." on public.profiles for update using (auth.uid() = id);
+drop policy if exists "Users can insert own profile." on public.profiles;
 create policy "Users can insert own profile." on public.profiles for insert with check (auth.uid() = id);
 
 -- Trigger to create a profile automatically when a user signs up
@@ -36,7 +45,7 @@ create trigger on_auth_user_created
 
 
 -- 2. Friends Table (Must be created before Places so Places can reference it in policies)
-create table public.friends (
+create table if not exists public.friends (
   id uuid default uuid_generate_v4() primary key,
   user_id_1 uuid references public.profiles(id) not null,
   user_id_2 uuid references public.profiles(id) not null,
@@ -48,9 +57,13 @@ create table public.friends (
 
 alter table public.friends enable row level security;
 -- View own friends
+drop policy if exists "View friends" on public.friends;
 create policy "View friends" on public.friends for select using (auth.uid() = user_id_1 OR auth.uid() = user_id_2);
+drop policy if exists "Insert friend" on public.friends;
 create policy "Insert friend" on public.friends for insert with check ((auth.uid() = user_id_1 OR auth.uid() = user_id_2) AND auth.uid() = action_user_id);
+drop policy if exists "Update friend" on public.friends;
 create policy "Update friend" on public.friends for update using (auth.uid() = user_id_1 OR auth.uid() = user_id_2);
+drop policy if exists "Delete friend" on public.friends;
 create policy "Delete friend" on public.friends for delete using (auth.uid() = user_id_1 OR auth.uid() = user_id_2);
 
 
@@ -58,7 +71,7 @@ create policy "Delete friend" on public.friends for delete using (auth.uid() = u
 drop type if exists visibility_status cascade;
 create type visibility_status as enum ('private', 'friends', 'public');
 
-create table public.places (
+create table if not exists public.places (
   id text primary key, -- Use a combination or uuid, keeping 'p_Date.now()' format for now if string
   user_id uuid references public.profiles(id) not null,
   lat numeric not null,
@@ -76,6 +89,7 @@ create table public.places (
 
 alter table public.places enable row level security;
 -- Policy: User can view their own, public ones, and we'll add friends later
+drop policy if exists "View places policy" on public.places;
 create policy "View places policy" on public.places for select using (
   auth.uid() = user_id OR
   visibility = 'public' OR
@@ -86,13 +100,16 @@ create policy "View places policy" on public.places for select using (
      (f.user_id_2 = auth.uid() and f.user_id_1 = places.user_id))
   ))
 );
+drop policy if exists "Insert own places" on public.places;
 create policy "Insert own places" on public.places for insert with check (auth.uid() = user_id);
+drop policy if exists "Update own places" on public.places;
 create policy "Update own places" on public.places for update using (auth.uid() = user_id);
+drop policy if exists "Delete own places" on public.places;
 create policy "Delete own places" on public.places for delete using (auth.uid() = user_id);
 
 
 -- 4. Notifications Table
-create table public.notifications (
+create table if not exists public.notifications (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references public.profiles(id) not null, -- receiver
   actor_id uuid references public.profiles(id),         -- who caused it
@@ -104,6 +121,9 @@ create table public.notifications (
 );
 
 alter table public.notifications enable row level security;
+drop policy if exists "View own notifications" on public.notifications;
 create policy "View own notifications" on public.notifications for select using (auth.uid() = user_id);
+drop policy if exists "Update own notifications" on public.notifications;
 create policy "Update own notifications" on public.notifications for update using (auth.uid() = user_id);
+drop policy if exists "Insert notifications" on public.notifications;
 create policy "Insert notifications" on public.notifications for insert with check (auth.uid() = actor_id); -- For simplicity

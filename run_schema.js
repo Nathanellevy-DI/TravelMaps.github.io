@@ -2,7 +2,7 @@ import fs from 'fs';
 import pkg from 'pg';
 const { Client } = pkg;
 
-const connectionString = 'postgresql://postgres:fWdDNu9rDOPt6GcX@db.apdbbgoygchayownirpe.supabase.co:5432/postgres';
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:[YOUR-PASSWORD]@db.apdbbgoygchayownirpe.supabase.co:5432/postgres';
 
 async function runSchema() {
     const client = new Client({
