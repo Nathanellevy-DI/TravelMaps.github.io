@@ -80,7 +80,7 @@ async function sendInvitationEmail(toEmail) {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(\`Invitation email sent successfully to \${toEmail}\`);
+    console.log(`Invitation email sent successfully to ${toEmail}`);
 }
 
 // Media Encryption Setup
