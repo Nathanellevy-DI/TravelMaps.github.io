@@ -28,18 +28,19 @@ export default function FriendsContent({ user }) {
         setError('');
         
         try {
-            // Read local users list
-            const allUsers = JSON.parse(localStorage.getItem('travelmaps_users') || '[]');
-            const query = searchQuery.toLowerCase();
-            const matchingUsers = allUsers.filter(u => 
-                (u.email.toLowerCase().includes(query) || u.name.toLowerCase().includes(query)) &&
-                u.id !== user?.id
-            ).map(u => ({
-                id: u.id,
-                display_name: u.name,
-                email: u.email
-            }));
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            const response = await fetch(`${apiUrl}/api/users/search?q=${encodeURIComponent(searchQuery.trim())}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
 
+            if (!response.ok) {
+                throw new Error('Search request failed');
+            }
+
+            const matchingUsers = await response.json();
             const existingFriendIds = friends.map(f => f.id);
             setSearchResults(matchingUsers.filter(u => !existingFriendIds.includes(u.id)));
         } catch (err) {
