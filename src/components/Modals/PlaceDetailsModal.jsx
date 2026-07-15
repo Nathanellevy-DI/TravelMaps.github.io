@@ -312,6 +312,27 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
                                                         />
                                                     </div>
                                                 )}
+
+                                                {/* Generic File Download rendering */}
+                                                {m.type && !m.type.startsWith('image/') && !m.type.startsWith('video/') && !m.type.startsWith('audio/') && m.type !== 'text/plain' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px' }}>
+                                                        <FileText size={24} style={{ color: 'var(--accent)' }} />
+                                                        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                                            <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name || 'Attachment'}</div>
+                                                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>File memory</div>
+                                                        </div>
+                                                        {mediaUrls[m.id] && (
+                                                            <a 
+                                                                href={mediaUrls[m.id]} 
+                                                                download={m.name || 'attachment'} 
+                                                                className="small-btn primary"
+                                                                style={{ textDecoration: 'none', padding: '4px 8px', fontSize: '11px' }}
+                                                            >
+                                                                Download
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 
                                                 {m.created_at && (
                                                     <div style={{ fontSize: '10px', color: 'var(--muted)', textAlign: 'right' }}>

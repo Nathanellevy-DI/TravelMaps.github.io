@@ -50,7 +50,7 @@ async function sendInvitationEmail(toEmail) {
             
             <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
                 If the button doesn't work, copy and paste this link in your browser:<br/>
-                <a href="https://www.travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">www.travelmaps.world/#/secret-signup</a>
+                <a href="www.travelmaps.world/#/secret-signup" style="color: #C9996B; text-decoration: underline; font-weight: 600;">www.travelmaps.world/#/secret-signup</a>
             </p>
             
             <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
@@ -125,8 +125,20 @@ async function sendInvitationEmail(toEmail) {
 // Media Encryption Setup
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32); // Must be exactly 32 bytes string for aes-256-cbc. Fallback for dev.
 
-// Multer in-memory storage (we encrypt before uploading)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const fs = require('fs');
+const path = require('path');
+
+// Create local uploads directory if it does not exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+}
+
+// Multer disk storage to prevent OOM errors for large file uploads up to 3GB
+const upload = multer({ 
+    dest: uploadsDir, 
+    limits: { fileSize: 3 * 1024 * 1024 * 1024 } // 3 GB max file size
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -556,23 +568,41 @@ app.post('/api/media/upload', authenticateToken, upload.single('media'), async (
     const mediaId = uuidv4();
     const iv = crypto.randomBytes(16);
     const keyString = typeof ENCRYPTION_KEY === 'string' ? ENCRYPTION_KEY : ENCRYPTION_KEY.toString('hex').slice(0, 32);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(keyString, 'utf8'), iv);
-    const encryptedBuffer = Buffer.concat([cipher.update(req.file.buffer), cipher.final()]);
     
+    const inputPath = req.file.path;
+    const outputPath = req.file.path + '.enc';
     const filePath = `${mediaId}.enc`;
     
     try {
-        // Upload to Supabase Storage
-        const { data, error } = await supabase.storage.from('media').upload(filePath, encryptedBuffer, {
-            contentType: 'application/octet-stream',
-            upsert: false
+        // Stream encrypt the file to disk (to handle up to 3GB files without crashing Node memory)
+        await new Promise((resolve, reject) => {
+            const readStream = fs.createReadStream(inputPath);
+            const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(keyString, 'utf8'), iv);
+            const writeStream = fs.createWriteStream(outputPath);
+            
+            readStream.pipe(cipher).pipe(writeStream);
+            
+            writeStream.on('finish', resolve);
+            writeStream.on('error', reject);
+            readStream.on('error', reject);
+            cipher.on('error', reject);
         });
-
+        
+        // Upload the encrypted file stream to Supabase Storage
+        const encryptedFileStream = fs.createReadStream(outputPath);
+        
+        const { data, error } = await supabase.storage.from('media').upload(filePath, encryptedFileStream, {
+            contentType: 'application/octet-stream',
+            upsert: false,
+            duplex: 'half'
+        });
+        
         if (error) throw new Error(error.message);
         
+        const originalName = req.file.originalname || 'file';
         await pool.query(
-            `INSERT INTO media (id, uploader_id, place_id, tier, file_path, iv, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [mediaId, req.user.id, placeId || null, parsedTier, filePath, iv.toString('hex'), req.file.mimetype]
+            `INSERT INTO media (id, uploader_id, place_id, tier, file_path, iv, mime_type, name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [mediaId, req.user.id, placeId || null, parsedTier, filePath, iv.toString('hex'), req.file.mimetype, originalName]
         );
         
         if (parsedTier === 1 || parsedTier === 2) {
@@ -591,7 +621,16 @@ app.post('/api/media/upload', authenticateToken, upload.single('media'), async (
         
         res.json({ success: true, mediaId });
     } catch (err) {
+        console.error('File upload error:', err.message);
         return res.status(500).json({ error: err.message });
+    } finally {
+        // Clean up temporary files on disk
+        try {
+            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        } catch (cleanupErr) {
+            console.error('Failed to clean up temp files:', cleanupErr.message);
+        }
     }
 });
 
@@ -742,6 +781,7 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
+server.timeout = 0; // Disable connection timeout for large file uploads (up to 3GB)
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

@@ -459,6 +459,12 @@ body {
     border-color: var(--accent);
 }
 
+.small-btn.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
 /* Pin Controls (Floating Category Selector) */
 .pin-controls {
     position: fixed;

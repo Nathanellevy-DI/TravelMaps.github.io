@@ -49,29 +49,20 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
         const selectedFile = e.target.files[0];
         if (!selectedFile) return;
         
-        // Accept images, videos, audio
-        const isValidType = selectedFile.type.startsWith('image/') || 
-                            selectedFile.type.startsWith('video/') || 
-                            selectedFile.type.startsWith('audio/');
-        
-        if (!isValidType) {
-            setError('Please select an image, video, or audio/music file.');
-            return;
-        }
-        
-        if (selectedFile.size > 20 * 1024 * 1024) { // Max 20MB
-            setError('File size must be less than 20MB.');
+        if (selectedFile.size > 3 * 1024 * 1024 * 1024) { // Max 3GB
+            setError('File size must be less than 3GB.');
             return;
         }
         
         setFile(selectedFile);
         setError('');
         
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setPreview(reader.result);
-        };
-        reader.readAsDataURL(selectedFile);
+        if (preview && typeof preview === 'string' && preview.startsWith('blob:')) {
+            URL.revokeObjectURL(preview);
+        }
+        
+        const objectUrl = URL.createObjectURL(selectedFile);
+        setPreview(objectUrl);
     };
 
     // Voice Recorder implementation
@@ -247,8 +238,8 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                     }}
                 >
                     <Upload size={32} style={{ color: 'var(--muted)', marginBottom: '8px' }} />
-                    <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 500 }}>Select Photo, Video, or Music</p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--muted)' }}>E2E Encrypted • Max 20MB</p>
+                    <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 500 }}>Select Photo, Video, or Any File</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--muted)' }}>E2E Encrypted • Max 3GB</p>
                 </div>
             )}
 
@@ -312,6 +303,15 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                                 <div style={{ padding: '12px', background: 'rgba(0,0,0,0.1)' }}>
                                     <p style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: 600 }}>{file.name}</p>
                                     <audio src={preview} controls style={{ width: '100%' }} />
+                                </div>
+                            )}
+                            {!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/') && (
+                                <div style={{ padding: '16px', background: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <FileText size={28} style={{ color: 'var(--accent)' }} />
+                                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                        <div style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
+                                    </div>
                                 </div>
                             )}
                             <button 
@@ -407,7 +407,6 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                 type="file" 
                 ref={fileInputRef} 
                 onChange={handleFileChange} 
-                accept="image/*,video/*,audio/*" 
                 style={{ display: 'none' }} 
             />
         </div>

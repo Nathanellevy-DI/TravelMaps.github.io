@@ -124,6 +124,9 @@ function initDB() {
                 console.log("Storage bucket creation info (may already exist or no direct access):", storageErr.message);
             }
 
+            // Add name column to media if it doesn't exist
+            await pool.query(`ALTER TABLE media ADD COLUMN IF NOT EXISTS name TEXT;`);
+
             console.log('PostgreSQL tables verified.');
         } catch (err) {
             console.error('Error creating tables:', err);
