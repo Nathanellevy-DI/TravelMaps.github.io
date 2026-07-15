@@ -309,9 +309,9 @@ function AppRouter() {
     }
   }, []);
 
-  // Reset showAuth when user logs out
+  // Reset showAuth when user logs out, except when loading via register link
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !window.location.href.includes('register=true')) {
       setShowAuth(false);
     }
   }, [isAuthenticated]);
