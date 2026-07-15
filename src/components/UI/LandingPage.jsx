@@ -17,36 +17,34 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
         }
     };
 
-    const handleJoinWaitlist = async (e) => {
+    const handleJoinWaitlist = (e) => {
         e.preventDefault();
         const trimmedEmail = email.trim();
         if (!trimmedEmail) return;
 
-        setLoading(true);
-        setMessage('');
+        // 1. Show instant success message to user (Optimistic UX)
+        setMessage('Thank you for joining! You will be notified when you can create an account.');
         setIsError(false);
+        setEmail('');
 
-        try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-            const response = await fetch(`${apiUrl}/api/waitlist/join`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email: trimmedEmail }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                setMessage('Successfully joined the waitlist! We will notify you when invited.');
-                setEmail('');
-            } else {
-                setMessage(data.error || 'Failed to join waitlist.');
-                setIsError(true);
+        // 2. Perform the server registration in the background
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        fetch(`${apiUrl}/api/waitlist/join`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: trimmedEmail }),
+        })
+        .then(async (response) => {
+            if (!response.ok) {
+                const data = await response.json();
+                console.warn('Background waitlist signup response warning:', data.error);
             }
-        } catch (err) {
-            console.error('Waitlist API error, falling back:', err);
-            // Local fallback
+        })
+        .catch(err => {
+            console.error('Background waitlist signup network error, saving locally:', err);
+            // Save to local storage fallback in background
             try {
                 const localList = JSON.parse(localStorage.getItem('travelmaps_waitlist') || '[]');
                 const lower = trimmedEmail.toLowerCase();
@@ -54,15 +52,10 @@ export default function LandingPage({ onEnterLogin, onEnterRegister }) {
                     localList.push(lower);
                     localStorage.setItem('travelmaps_waitlist', JSON.stringify(localList));
                 }
-                setMessage('Successfully joined the waitlist!');
-                setEmail('');
             } catch (fallbackErr) {
-                setMessage('An error occurred. Please try again.');
-                setIsError(true);
+                console.error('Local fallback write error:', fallbackErr);
             }
-        } finally {
-            setLoading(false);
-        }
+        });
     };
 
     return (
