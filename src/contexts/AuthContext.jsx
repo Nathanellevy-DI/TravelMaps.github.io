@@ -28,11 +28,18 @@ export function AuthProvider({ children }) {
             if (token && currentUserStr) {
                 try {
                     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                    // Use AbortController to timeout after 5 seconds
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 5000);
+
                     const response = await fetch(`${apiUrl}/api/auth/me`, {
                         headers: {
                             'Authorization': `Bearer ${token}`
-                        }
+                        },
+                        signal: controller.signal
                     });
+                    clearTimeout(timeout);
+
                     if (response.ok) {
                         const data = await response.json();
                         setUser(data.user);
@@ -40,10 +47,24 @@ export function AuthProvider({ children }) {
                         throw new Error('Token verification failed');
                     }
                 } catch (err) {
-                    console.error('Auth error on load:', err);
-                    localStorage.removeItem('travelmaps_current_user');
-                    localStorage.removeItem('travelmaps_token');
-                    setUser(null);
+                    console.warn('Auth verification error (using cached user):', err.message || err);
+                    // If the server is unavailable/slow, fall back to cached user
+                    if (err.name === 'AbortError' || err.message?.includes('fetch')) {
+                        try {
+                            const cachedUser = JSON.parse(currentUserStr);
+                            if (cachedUser && cachedUser.id) {
+                                setUser(cachedUser);
+                            }
+                        } catch {
+                            localStorage.removeItem('travelmaps_current_user');
+                            localStorage.removeItem('travelmaps_token');
+                            setUser(null);
+                        }
+                    } else {
+                        localStorage.removeItem('travelmaps_current_user');
+                        localStorage.removeItem('travelmaps_token');
+                        setUser(null);
+                    }
                 }
             }
             setIsLoading(false);
