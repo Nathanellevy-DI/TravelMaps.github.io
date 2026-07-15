@@ -57,20 +57,42 @@ export function PlacesProvider({ children, user }) {
     const fetchPlaces = async () => {
         if (!user) return;
         try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            
+            if (token) {
+                const response = await fetch(`${apiUrl}/api/places`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const serverPlaces = await response.json();
+                    setSavedPlaces(serverPlaces);
+                    
+                    // Cache to IndexedDB for offline access
+                    const data = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+                    await saveUserData(userIdKey, { ...data, savedPlaces: serverPlaces });
+                    setIsLoaded(true);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.warn('Backend fetch failed, falling back to IndexedDB:', error);
+        }
+
+        try {
             const data = await getUserData(userIdKey);
             if (data) {
                 setSavedPlaces(data.savedPlaces || []);
                 setCategories(data.categories || DEFAULT_CATEGORIES);
             } else {
-                // Initialize
                 const initialData = { savedPlaces: [], categories: DEFAULT_CATEGORIES };
                 await saveUserData(userIdKey, initialData);
                 setSavedPlaces([]);
                 setCategories(DEFAULT_CATEGORIES);
             }
-            setIsLoaded(true);
         } catch (error) {
             console.error('Error loading places:', error);
+        } finally {
             setIsLoaded(true);
         }
     };
@@ -106,7 +128,6 @@ export function PlacesProvider({ children, user }) {
         if (!categories.includes(name)) {
             updatedCategories = [...categories, name];
             setCategories(updatedCategories);
-            // Save to IndexedDB
             await saveUserData(userIdKey, { savedPlaces, categories: updatedCategories });
         }
         setCategory(name);
@@ -134,35 +155,93 @@ export function PlacesProvider({ children, user }) {
             approvalStatus: isShabbat ? 'none' : 'approved'
         };
 
+        // Optimistically save locally
+        const updatedPlaces = [newPlace, ...savedPlaces];
+        setSavedPlaces(updatedPlaces);
         try {
-            const updatedPlaces = [newPlace, ...savedPlaces];
-            setSavedPlaces(updatedPlaces);
-            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+            const localData = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+            await saveUserData(userIdKey, { ...localData, savedPlaces: updatedPlaces });
         } catch (error) {
-            alert('Failed to save place: ' + error.message);
+            console.error(error);
+        }
+
+        // Save to backend
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                await fetch(`${apiUrl}/api/places`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(newPlace)
+                });
+            }
+        } catch (error) {
+            console.error('Failed to save place to backend:', error);
         }
     };
 
     const removePlace = async (id) => {
         const confirmed = await showConfirm('Delete Place', 'Delete this saved place and all its memories?', true);
         if (confirmed) {
+            // Save locally
+            const updatedPlaces = savedPlaces.filter(p => p.id !== id);
+            setSavedPlaces(updatedPlaces);
             try {
-                const updatedPlaces = savedPlaces.filter(p => p.id !== id);
-                setSavedPlaces(updatedPlaces);
-                await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+                const localData = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+                await saveUserData(userIdKey, { ...localData, savedPlaces: updatedPlaces });
             } catch (err) {
                 console.error(err);
+            }
+
+            // Save to backend
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                const token = localStorage.getItem('travelmaps_token');
+                if (token) {
+                    await fetch(`${apiUrl}/api/places/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to delete place from backend:', error);
             }
         }
     };
 
     const updateVisibility = async (placeId, newVisibility) => {
+        // Save locally
+        const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, visibility: newVisibility } : p);
+        setSavedPlaces(updatedPlaces);
         try {
-            const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, visibility: newVisibility } : p);
-            setSavedPlaces(updatedPlaces);
-            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
+            const localData = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+            await saveUserData(userIdKey, { ...localData, savedPlaces: updatedPlaces });
         } catch (err) {
             console.error(err);
+        }
+
+        // Save to backend
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                await fetch(`${apiUrl}/api/places/${placeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ visibility: newVisibility })
+                });
+            }
+        } catch (error) {
+            console.error('Failed to update place visibility on backend:', error);
         }
     };
 
@@ -275,86 +354,82 @@ export function PlacesProvider({ children, user }) {
     const removeMedia = async (placeId, mediaId) => {
         const confirmed = await showConfirm('Delete Item', 'Are you sure you want to delete this memory?', true);
         if (confirmed) {
-            try {
-                const updatedPlaces = savedPlaces.map(p => {
-                    if (p.id === placeId) {
-                        return {
-                            ...p,
-                            media: (p.media || []).filter(m => m.id !== mediaId)
-                        };
-                    }
-                    return p;
-                });
-                setSavedPlaces(updatedPlaces);
-                await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
-            } catch (err) {
-                console.error(err);
-            }
-        }
-    };
-
-    const addTextNote = async (placeId, noteText, tier = 3) => {
-        try {
-            const mediaId = 'm_' + Date.now();
-            const newNote = {
-                id: mediaId,
-                tier,
-                type: 'text/plain',
-                name: 'Note',
-                dataUrl: noteText,
-                created_at: new Date().toISOString()
-            };
+            // Save locally
             const updatedPlaces = savedPlaces.map(p => {
                 if (p.id === placeId) {
                     return {
                         ...p,
-                        media: [...(p.media || []), newNote]
+                        media: (p.media || []).filter(m => m.id !== mediaId)
                     };
                 }
                 return p;
             });
             setSavedPlaces(updatedPlaces);
-            await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
-            return { success: true };
-        } catch (err) {
-            console.error(err);
-            return { error: err.message };
+            try {
+                const localData = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+                await saveUserData(userIdKey, { ...localData, savedPlaces: updatedPlaces });
+            } catch (err) {
+                console.error(err);
+            }
+
+            // Save to backend
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                const token = localStorage.getItem('travelmaps_token');
+                if (token) {
+                    await fetch(`${apiUrl}/api/media/${mediaId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to delete media from backend:', error);
+            }
         }
     };
 
     const uploadMedia = async (placeId, file, tier) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    const mediaId = 'm_' + Date.now();
-                    const newMedia = {
-                        id: mediaId,
-                        tier,
-                        name: file.name,
-                        type: file.type,
-                        dataUrl: reader.result,
-                        created_at: new Date().toISOString()
-                    };
-                    const updatedPlaces = savedPlaces.map(p => {
-                        if (p.id === placeId) {
-                            return {
-                                ...p,
-                                media: [...(p.media || []), newMedia]
-                            };
-                        }
-                        return p;
-                    });
-                    setSavedPlaces(updatedPlaces);
-                    await saveUserData(userIdKey, { savedPlaces: updatedPlaces, categories });
-                    resolve({ success: true, mediaId });
-                } catch (err) {
-                    reject(err);
-                }
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(file);
-        });
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            
+            const formData = new FormData();
+            formData.append('media', file);
+            formData.append('placeId', placeId);
+            formData.append('tier', tier);
+
+            const response = await fetch(`${apiUrl}/api/media/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Failed to upload file');
+            }
+
+            const result = await response.json();
+            await fetchPlaces(); // Refresh to sync
+            return { success: true, mediaId: result.mediaId };
+        } catch (err) {
+            console.error('Error uploading media:', err);
+            throw err;
+        }
+    };
+
+    const addTextNote = async (placeId, noteText, tier = 3) => {
+        try {
+            const file = new File([noteText], 'Note.txt', { type: 'text/plain' });
+            return await uploadMedia(placeId, file, tier);
+        } catch (err) {
+            console.error('Error adding text note:', err);
+            return { error: err.message };
+        }
     };
 
     return (

@@ -617,6 +617,34 @@ app.get('/api/media/:media_id', authenticateToken, async (req, res) => {
     }
 });
 
+app.delete('/api/media/:media_id', authenticateToken, async (req, res) => {
+    const mediaId = req.params.media_id;
+    try {
+        const { rows } = await pool.query(`SELECT * FROM media WHERE id = $1`, [mediaId]);
+        const media = rows[0];
+        if (!media) return res.status(404).json({ error: 'Media not found' });
+        
+        if (media.uploader_id !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized to delete this media' });
+        }
+        
+        // Delete from Supabase Storage
+        try {
+            await supabase.storage.from('media').remove([media.file_path]);
+        } catch (storageErr) {
+            console.error('Storage deletion warning:', storageErr.message);
+        }
+        
+        // Delete from DB
+        await pool.query(`DELETE FROM media WHERE id = $1`, [mediaId]);
+        
+        io.emit('places_update');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 async function serveDecryptedMedia(media, res) {
     try {
         // Download from Supabase Storage

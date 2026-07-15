@@ -41,15 +41,50 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
     // Media blob URLs caching to prevent re-fetching on every render
     const [mediaUrls, setMediaUrls] = useState({});
 
-    // Fetch secure images
+    // Fetch secure images/media from backend or fallback to dataUrl
     useEffect(() => {
         if (!place || !place.media) return;
         
-        place.media.forEach((m) => {
-            if (!mediaUrls[m.id] && m.dataUrl) {
+        const fetchMedia = async (m) => {
+            if (mediaUrls[m.id]) return;
+            
+            if (m.dataUrl) {
                 setMediaUrls(prev => ({ ...prev, [m.id]: m.dataUrl }));
+                return;
             }
-        });
+            
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                const token = localStorage.getItem('travelmaps_token');
+                
+                const response = await fetch(`${apiUrl}/api/media/${m.id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    if (m.type === 'text/plain') {
+                        const text = await blob.text();
+                        setMediaUrls(prev => ({ ...prev, [m.id]: text }));
+                    } else {
+                        const blobUrl = URL.createObjectURL(blob);
+                        setMediaUrls(prev => ({ ...prev, [m.id]: blobUrl }));
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch media file from backend:', err);
+            }
+        };
+
+        place.media.forEach(fetchMedia);
+
+        return () => {
+            Object.values(mediaUrls).forEach(url => {
+                if (url && typeof url === 'string' && url.startsWith('blob:')) {
+                    URL.revokeObjectURL(url);
+                }
+            });
+        };
     }, [place?.media]);
 
 
@@ -241,37 +276,37 @@ export default function PlaceDetailsModal({ placeId, onClose }) {
                                                 {/* Text Note rendering */}
                                                 {m.type === 'text/plain' && (
                                                     <div style={{ fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--text-main)', textAlign: 'left', background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px' }}>
-                                                        {m.dataUrl}
+                                                        {mediaUrls[m.id]}
                                                     </div>
                                                 )}
 
                                                 {/* Image rendering */}
-                                                {m.type && m.type.startsWith('image/') && (
+                                                {m.type && m.type.startsWith('image/') && mediaUrls[m.id] && (
                                                     <img
-                                                        src={m.dataUrl}
+                                                        src={mediaUrls[m.id]}
                                                         alt="Saved memory"
-                                                        onClick={() => setLightboxImage(m.dataUrl)}
+                                                        onClick={() => setLightboxImage(mediaUrls[m.id])}
                                                         style={{ cursor: 'pointer', width: '100%', maxHeight: '250px', objectFit: 'cover', borderRadius: '8px' }}
                                                     />
                                                 )}
 
                                                 {/* Video rendering */}
-                                                {m.type && m.type.startsWith('video/') && (
+                                                {m.type && m.type.startsWith('video/') && mediaUrls[m.id] && (
                                                     <video
-                                                        src={m.dataUrl}
+                                                        src={mediaUrls[m.id]}
                                                         controls
                                                         style={{ width: '100%', maxHeight: '250px', background: 'black', borderRadius: '8px' }}
                                                     />
                                                 )}
 
                                                 {/* Audio / Voice rendering */}
-                                                {m.type && m.type.startsWith('audio/') && (
+                                                {m.type && m.type.startsWith('audio/') && mediaUrls[m.id] && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                         <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textAlign: 'left' }}>
                                                             {m.name || 'Voice Note'}
                                                         </div>
                                                         <audio
-                                                            src={m.dataUrl}
+                                                            src={mediaUrls[m.id]}
                                                             controls
                                                             style={{ width: '100%' }}
                                                         />
