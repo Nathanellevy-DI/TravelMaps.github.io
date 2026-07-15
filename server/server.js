@@ -605,13 +605,41 @@ app.get('/api/media/:media_id', authenticateToken, async (req, res) => {
         if (!media) return res.status(404).json({ error: 'Media not found' });
         
         // Object-Level Access Control (OLAC)
+        let isAuthorized = false;
+        
         if (media.tier === 3 || media.uploader_id === req.user.id) {
+            isAuthorized = true;
+        } else {
+            // Check explicit media access sharing
+            const { rows: accessRows } = await pool.query(`SELECT * FROM media_access WHERE media_id = $1 AND user_id = $2`, [mediaId, req.user.id]);
+            if (accessRows.length > 0) {
+                isAuthorized = true;
+            } else if (media.place_id) {
+                // Authorize if they can view the place itself!
+                const placeQuery = `
+                    SELECT 1 FROM places p
+                    WHERE p.id = $1 AND (
+                        p.user_id = $2
+                        OR p.visibility = 'public'
+                        OR p.visibility = $2
+                        OR (p.visibility = 'friends' AND p.user_id IN (
+                            SELECT user_id_2 FROM friends WHERE user_id_1 = $2 AND status = 'accepted'
+                            UNION
+                            SELECT user_id_1 FROM friends WHERE user_id_2 = $2 AND status = 'accepted'
+                        ))
+                    )
+                `;
+                const { rows: placeAuth } = await pool.query(placeQuery, [media.place_id, req.user.id]);
+                if (placeAuth.length > 0) {
+                    isAuthorized = true;
+                }
+            }
+        }
+        
+        if (isAuthorized) {
             await serveDecryptedMedia(media, res);
         } else {
-            const { rows: accessRows } = await pool.query(`SELECT * FROM media_access WHERE media_id = $1 AND user_id = $2`, [mediaId, req.user.id]);
-            if (accessRows.length === 0) return res.status(403).json({ error: 'Forbidden' });
-            
-            await serveDecryptedMedia(media, res);
+            return res.status(403).json({ error: 'Forbidden' });
         }
     } catch (err) {
         return res.status(500).json({ error: err.message });

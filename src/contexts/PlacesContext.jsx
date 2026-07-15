@@ -66,6 +66,51 @@ export function PlacesProvider({ children, user }) {
                 });
                 if (response.ok) {
                     const serverPlaces = await response.json();
+                    
+                    // Sync any local-only places that aren't on the server yet
+                    const localData = await getUserData(userIdKey);
+                    const localPlaces = localData?.savedPlaces || [];
+                    const serverPlaceIds = new Set(serverPlaces.map(p => p.id));
+                    const unsyncedPlaces = localPlaces.filter(p => !serverPlaceIds.has(p.id) && p.user_id === userIdKey);
+                    
+                    if (unsyncedPlaces.length > 0) {
+                        console.log(`Syncing ${unsyncedPlaces.length} offline local places to the server...`);
+                        for (const p of unsyncedPlaces) {
+                            try {
+                                await fetch(`${apiUrl}/api/places`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify(p)
+                                });
+                            } catch (err) {
+                                console.error('Failed to sync place:', p.id, err);
+                            }
+                        }
+                        
+                        // Refetch to get the synced list
+                        const refetchRes = await fetch(`${apiUrl}/api/places`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (refetchRes.ok) {
+                            const updatedServerPlaces = await refetchRes.json();
+                            const formattedPlaces = updatedServerPlaces.map(p => {
+                                const isOwnPlace = p.user_id === userIdKey;
+                                return {
+                                    ...p,
+                                    isShared: !isOwnPlace,
+                                    sharedBy: !isOwnPlace ? { username: p.profile?.display_name || 'Friend' } : null
+                                };
+                            });
+                            setSavedPlaces(formattedPlaces);
+                            await saveUserData(userIdKey, { ...localData, savedPlaces: formattedPlaces });
+                            setIsLoaded(true);
+                            return;
+                        }
+                    }
+
                     const formattedPlaces = serverPlaces.map(p => {
                         const isOwnPlace = p.user_id === userIdKey;
                         return {
