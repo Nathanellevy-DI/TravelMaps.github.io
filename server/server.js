@@ -150,15 +150,32 @@ app.post('/api/waitlist/join', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-    const { email, password, display_name } = req.body;
+    const { email, password, display_name, invite_code } = req.body;
     try {
-        // Waitlist check
-        const { rows: waitlistRows } = await pool.query(
-            `SELECT * FROM waitlist WHERE email = $1`,
-            [email.toLowerCase().trim()]
-        );
-        const waitlistEntry = waitlistRows[0];
-        if (!waitlistEntry || waitlistEntry.status !== 'invited') {
+        const secretCode = process.env.UNIVERSAL_INVITE_CODE || 'TravelMapsVIP';
+        let isInvited = false;
+
+        if (invite_code && invite_code.trim() === secretCode) {
+            isInvited = true;
+            // Auto-insert or update waitlist entry as invited for consistency
+            await pool.query(
+                `INSERT INTO waitlist (email, status) VALUES ($1, 'invited')
+                 ON CONFLICT (email) DO UPDATE SET status = 'invited'`,
+                [email.toLowerCase().trim()]
+            );
+        } else {
+            // Waitlist check
+            const { rows: waitlistRows } = await pool.query(
+                `SELECT * FROM waitlist WHERE email = $1`,
+                [email.toLowerCase().trim()]
+            );
+            const waitlistEntry = waitlistRows[0];
+            if (waitlistEntry && waitlistEntry.status === 'invited') {
+                isInvited = true;
+            }
+        }
+
+        if (!isInvited) {
             return res.status(403).json({ error: 'This email has not been invited to register yet.' });
         }
 

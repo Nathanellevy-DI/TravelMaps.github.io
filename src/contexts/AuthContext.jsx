@@ -101,7 +101,7 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    const register = useCallback(async (email, password, displayName) => {
+    const register = useCallback(async (email, password, displayName, inviteCode) => {
         setError(null);
         setIsLoading(true);
         try {
@@ -111,7 +111,7 @@ export function AuthProvider({ children }) {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email: email.trim(), password, display_name: displayName })
+                body: JSON.stringify({ email: email.trim(), password, display_name: displayName, invite_code: inviteCode })
             });
             const data = await response.json();
             if (!response.ok) {

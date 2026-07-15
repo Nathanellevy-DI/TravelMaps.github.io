@@ -23,8 +23,11 @@ export default function RegisterPage({ onSwitchToLogin, onBackToLanding }) {
             return;
         }
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('code') || '';
+
         setIsLoading(true);
-        const { error } = await register(email, password, name);
+        const { error } = await register(email, password, name, inviteCode);
         if (!error) {
             // Success, handled by AuthContext if auto-login occurs,
             // or we might need to tell user to log in if confirm email is required.
