@@ -99,12 +99,6 @@ export default function LoginPage({ onSwitchToRegister, onBackToLanding }) {
                 </form>
 
                 <div style={{ marginTop: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                    <p style={{ color: 'var(--text-secondary)'}}>
-                        Don't have an account?{' '}
-                        <button type="button" onClick={onSwitchToRegister} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline'}}>
-                            Register Instead
-                        </button>
-                    </p>
                     {onBackToLanding && (
                         <button type="button" onClick={onBackToLanding} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}>
                             Back to Home

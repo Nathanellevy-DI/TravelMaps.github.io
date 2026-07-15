@@ -301,6 +301,14 @@ function AppRouter() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
+  // Check for register parameter in URL
+  useEffect(() => {
+    if (window.location.href.includes('register=true')) {
+      setShowAuth(true);
+      setIsRegistering(true);
+    }
+  }, []);
+
   // Reset showAuth when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
