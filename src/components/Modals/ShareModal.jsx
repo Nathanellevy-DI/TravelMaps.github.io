@@ -13,9 +13,11 @@
 import { useState } from 'react';
 import { X, Share2, Globe, Users, Lock } from 'lucide-react';
 import { usePlaces } from '../../contexts/PlacesContext';
+import { useSocial } from '../../contexts/SocialContext';
 
 export default function ShareModal({ isOpen, onClose, type, item }) {
     const { updateVisibility } = usePlaces();
+    const { friends } = useSocial();
     const [sharing, setSharing] = useState(false);
     const [selectedVisibility, setSelectedVisibility] = useState(item?.visibility || 'private');
 
@@ -25,7 +27,7 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
         setSharing(true);
         try {
             await updateVisibility(item.id, selectedVisibility);
-            alert(`Place visibility updated to "${selectedVisibility}"!`);
+            alert(`Place visibility updated!`);
             onClose();
         } catch (err) {
             alert('Failed to update sharing: ' + err.message);
@@ -43,6 +45,19 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
         { value: 'public', label: 'Public', icon: Globe, desc: 'Everyone can see this place' },
     ];
 
+    const getButtonText = () => {
+        if (sharing) return 'Updating...';
+        if (selectedVisibility === 'private') return 'Make Private';
+        if (selectedVisibility === 'friends') return 'Share with all Friends';
+        if (selectedVisibility === 'public') return 'Make Public';
+        
+        const selectedFriend = friends.find(f => f.id === selectedVisibility);
+        if (selectedFriend) {
+            return `Share with ${selectedFriend.display_name}`;
+        }
+        return 'Update Visibility';
+    };
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
@@ -59,16 +74,16 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                         {item?.formatted && <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{item.formatted}</div>}
                     </div>
 
-                    <h4 style={{ marginBottom: '12px' }}>Who can see this place?</h4>
+                    <h4 style={{ marginBottom: '12px' }}>General visibility:</h4>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                         {visibilityOptions.map(({ value, label, icon: Icon, desc }) => (
                             <div
                                 key={value}
                                 onClick={() => setSelectedVisibility(value)}
                                 className="saved-card"
                                 style={{
-                                    padding: '14px',
+                                    padding: '12px 14px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     cursor: 'pointer',
@@ -79,8 +94,8 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                                 }}
                             >
                                 <div style={{
-                                    width: '36px',
-                                    height: '36px',
+                                    width: '32px',
+                                    height: '32px',
                                     borderRadius: '50%',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -88,15 +103,63 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                                     background: selectedVisibility === value ? 'var(--accent)' : 'var(--border)',
                                     flexShrink: 0
                                 }}>
-                                    <Icon size={18} color={selectedVisibility === value ? 'white' : 'var(--muted)'} />
+                                    <Icon size={16} color={selectedVisibility === value ? 'white' : 'var(--muted)'} />
                                 </div>
                                 <div>
                                     <div style={{ fontWeight: 600, fontSize: '14px' }}>{label}</div>
-                                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{desc}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{desc}</div>
                                 </div>
                             </div>
                         ))}
                     </div>
+
+                    {friends.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <h4 style={{ marginBottom: '12px' }}>Or share with a specific friend:</h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                                {friends.map(friend => {
+                                    const isSelected = selectedVisibility === friend.id;
+                                    return (
+                                        <div
+                                            key={friend.id}
+                                            onClick={() => setSelectedVisibility(friend.id)}
+                                            className="saved-card"
+                                            style={{
+                                                padding: '10px 14px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                cursor: 'pointer',
+                                                gap: '12px',
+                                                border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                background: isSelected ? 'var(--input-bg)' : 'transparent',
+                                                borderRadius: '10px'
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '28px',
+                                                height: '28px',
+                                                borderRadius: '50%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                background: isSelected ? 'var(--accent)' : 'var(--border)',
+                                                color: isSelected ? 'white' : 'var(--muted)',
+                                                fontWeight: 600,
+                                                fontSize: '12px',
+                                                flexShrink: 0
+                                            }}>
+                                                {friend.display_name ? friend.display_name[0].toUpperCase() : 'F'}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{friend.display_name}</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{friend.email}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     <button
                         className="primary"
@@ -104,7 +167,7 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                         onClick={handleShare}
                         disabled={sharing || selectedVisibility === item?.visibility}
                     >
-                        {sharing ? 'Updating...' : 'Update Visibility'}
+                        {getButtonText()}
                     </button>
                 </div>
             </div>

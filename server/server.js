@@ -341,9 +341,10 @@ app.get('/api/places', authenticateToken, async (req, res) => {
                    UNION
                    SELECT user_id_1 FROM friends WHERE user_id_2 = $3 AND status = 'accepted'
                ))
+               OR p.visibility = $4
             ORDER BY p.created_at DESC
         `;
-        const { rows } = await pool.query(query, [userId, userId, userId]);
+        const { rows } = await pool.query(query, [userId, userId, userId, userId]);
         
         // Only fetch media for the places we're actually returning (not the entire table)
         const placeIds = rows.map(r => r.id);
