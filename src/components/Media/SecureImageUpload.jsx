@@ -132,6 +132,61 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
         }
     };
 
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) {
+                resolve(file);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 2048;
+                    const MAX_HEIGHT = 2048;
+                    
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now()
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            resolve(file);
+                        }
+                    }, 'image/jpeg', 0.85);
+                };
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
     const handleUpload = async () => {
         // Validation based on type
         if (uploadType === 'file' || uploadType === 'voice') {
@@ -162,7 +217,12 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
             if (uploadType === 'note') {
                 await addTextNote(placeId, noteText, tier);
             } else {
-                await uploadMedia(placeId, file, tier);
+                let fileToUpload = file;
+                if (file.type.startsWith('image/')) {
+                    setError('Compressing image to optimize upload speed...');
+                    fileToUpload = await compressImage(file);
+                }
+                await uploadMedia(placeId, fileToUpload, tier);
             }
             
             // Reset states on success
