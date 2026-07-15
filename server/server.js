@@ -48,31 +48,35 @@ async function sendInvitationEmail(toEmail) {
         to: toEmail,
         subject: 'You have been invited to join TravelMaps!',
         html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1a202c; line-height: 1.6;">
-                <div style="text-align: center; margin-bottom: 24px;">
-                    <div style="background-color: #2E7D32; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; margin: 0 auto;">
-                        <span style="font-size: 32px; color: #ffffff;">🗺️</span>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 24px; border: 1px solid #E5E1DE; border-radius: 16px; background-color: #fcfbfa; color: #5C4F4A; line-height: 1.6; box-shadow: 0 4px 12px rgba(92, 79, 74, 0.05);">
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <!-- Elegant Custom Brand Pin Icon -->
+                    <div style="background-color: #5C766D; display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 20px; margin: 0 auto; box-shadow: 0 10px 25px -5px rgba(92, 118, 109, 0.35);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="#C9996B" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3" fill="#ffffff"></circle>
+                        </svg>
                     </div>
-                    <h2 style="color: #2E7D32; font-size: 24px; margin-top: 16px; margin-bottom: 8px;">Welcome to TravelMaps!</h2>
-                    <p style="color: #718096; font-size: 14px; margin: 0;">Your window to documenting and sharing journeys.</p>
+                    <h2 style="color: #5C4F4A; font-size: 26px; font-weight: 800; margin-top: 20px; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.5px;">Welcome to TravelMaps</h2>
+                    <p style="color: #8b807b; font-size: 14px; margin: 0;">Your private window to documenting and sharing journeys.</p>
                 </div>
                 
-                <p style="font-size: 16px; margin-bottom: 16px;">Hello,</p>
+                <p style="font-size: 16px; margin-bottom: 16px; font-weight: 600;">Hello,</p>
                 <p style="font-size: 16px; margin-bottom: 24px;">Good news! Your email request on our waitlist has been approved. You are now officially invited to join TravelMaps.</p>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://travelmaps.world/?register=true" style="background-color: #2E7D32; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px -1px rgba(46, 125, 50, 0.2);">
+                    <a href="https://travelmaps.world/?register=true" style="background-color: #5C766D; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block; box-shadow: 0 10px 20px -5px rgba(92, 118, 109, 0.4); font-size: 15px; transition: all 0.2s ease;">
                         Create Your Account
                     </a>
                 </div>
                 
-                <p style="font-size: 14px; color: #718096; margin-bottom: 24px; text-align: center;">
+                <p style="font-size: 14px; color: #8b807b; margin-bottom: 24px; text-align: center;">
                     If the button doesn't work, copy and paste this link in your browser:<br/>
-                    <a href="https://travelmaps.world/?register=true" style="color: #3182ce; text-decoration: underline;">https://travelmaps.world/?register=true</a>
+                    <a href="https://travelmaps.world/?register=true" style="color: #C9996B; text-decoration: underline; font-weight: 600;">https://travelmaps.world/?register=true</a>
                 </p>
                 
-                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
-                <p style="font-size: 12px; color: #a0aec0; text-align: center; margin: 0;">
+                <hr style="border: none; border-top: 1px solid #E5E1DE; margin: 32px 0;" />
+                <p style="font-size: 12px; color: #8b807b; text-align: center; margin: 0;">
                     This invitation was generated for ${toEmail}. If you did not request to join, please disregard this message.
                 </p>
             </div>
