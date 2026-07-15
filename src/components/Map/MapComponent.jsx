@@ -11,6 +11,7 @@
  *   - Popup details on each marker with "View Details" or "Save Location" actions
  *   - Temporary marker for search results and clicked locations before saving
  */
+import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { usePlaces } from '../../contexts/PlacesContext';
 import 'leaflet/dist/leaflet.css';
@@ -55,16 +56,16 @@ function MapEvents({ onMapClick }) {
             onMapClick(e);
         },
         locationfound(e) {
-            map.flyTo(e.latlng, map.getZoom());
+            map.setView(e.latlng, 13);
+        },
+        locationerror(e) {
+            console.warn('Geolocation failed or denied:', e.message);
         }
     });
 
-    // Request location on mount
-    import('react').then(React => {
-        React.useEffect(() => {
-            map.locate();
-        }, [map]);
-    });
+    useEffect(() => {
+        map.locate({ setView: true, maxZoom: 13 });
+    }, [map]);
 
     return null; // This component renders nothing; it only subscribes to events
 }

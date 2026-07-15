@@ -96,7 +96,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
     return (
         <>
             {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
-            <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
+            <aside className={`sidebar ${isOpen ? 'open' : ''} ${activeSidebarTab === 'admin' ? 'admin-active' : ''}`} id="sidebar">
                 <div className="sidebar-header" style={{ paddingBottom: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '12px' }}>
                         <h3 style={{ margin: 0 }}>My Hub</h3>
@@ -226,7 +226,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                     ) : activeSidebarTab === 'friends' ? (
                         <FriendsContent user={user} />
                     ) : (
-                        <AdminPanel />
+                        user?.email?.toLowerCase() === 'travelmaps@inbox.ru' ? <AdminPanel /> : <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Access Denied</div>
                     )}
                 </div>
                 <div className="sidebar-footer" style={{ padding: '12px', gap: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto' }}>
