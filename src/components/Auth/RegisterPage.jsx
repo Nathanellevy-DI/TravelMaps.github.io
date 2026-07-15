@@ -24,7 +24,10 @@ export default function RegisterPage({ onSwitchToLogin, onBackToLanding }) {
         }
 
         const urlParams = new URLSearchParams(window.location.search);
-        const inviteCode = urlParams.get('code') || '';
+        let inviteCode = urlParams.get('code') || '';
+        if (window.location.hash === '#/secret-signup') {
+            inviteCode = 'TravelMapsVIP';
+        }
 
         setIsLoading(true);
         const { error } = await register(email, password, name, inviteCode);
@@ -119,12 +122,12 @@ export default function RegisterPage({ onSwitchToLogin, onBackToLanding }) {
                 <div style={{ marginTop: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                     <p style={{ color: 'var(--text-secondary)'}}>
                         Already have an account?{' '}
-                        <button type="button" onClick={onSwitchToLogin} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline'}}>
+                        <button type="button" onClick={() => { window.location.hash = ''; onSwitchToLogin(); }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline'}}>
                             Log In
                         </button>
                     </p>
                     {onBackToLanding && (
-                        <button type="button" onClick={onBackToLanding} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}>
+                        <button type="button" onClick={() => { window.location.hash = ''; onBackToLanding(); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}>
                             Back to Home
                         </button>
                     )}

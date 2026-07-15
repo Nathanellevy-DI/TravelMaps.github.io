@@ -301,17 +301,22 @@ function AppRouter() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
-  // Check for register parameter in URL
+  // Check for register parameter or secret signup hash in URL
   useEffect(() => {
-    if (window.location.href.includes('register=true')) {
-      setShowAuth(true);
-      setIsRegistering(true);
-    }
+    const handleRouteCheck = () => {
+      if (window.location.href.includes('register=true') || window.location.hash === '#/secret-signup') {
+        setShowAuth(true);
+        setIsRegistering(true);
+      }
+    };
+    handleRouteCheck();
+    window.addEventListener('hashchange', handleRouteCheck);
+    return () => window.removeEventListener('hashchange', handleRouteCheck);
   }, []);
 
-  // Reset showAuth when user logs out, except when loading via register link
+  // Reset showAuth when user logs out, except when loading via register/secret-signup link
   useEffect(() => {
-    if (!isAuthenticated && !window.location.href.includes('register=true')) {
+    if (!isAuthenticated && !window.location.href.includes('register=true') && window.location.hash !== '#/secret-signup') {
       setShowAuth(false);
     }
   }, [isAuthenticated]);
