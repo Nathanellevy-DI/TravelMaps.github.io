@@ -122,10 +122,22 @@ function authenticateToken(req, res, next) {
 app.post('/api/waitlist/join', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
+    
+    const checkEmail = email.toLowerCase().trim();
     try {
+        // Check if already exists
+        const { rows } = await pool.query(
+            `SELECT status FROM waitlist WHERE email = $1`,
+            [checkEmail]
+        );
+        
+        if (rows.length > 0) {
+            return res.status(400).json({ error: 'This email is already registered on the waitlist.' });
+        }
+
         await pool.query(
-            `INSERT INTO waitlist (email, status) VALUES ($1, 'pending') ON CONFLICT (email) DO NOTHING`,
-            [email.toLowerCase().trim()]
+            `INSERT INTO waitlist (email, status) VALUES ($1, 'pending')`,
+            [checkEmail]
         );
         res.json({ success: true, message: 'Joined waitlist successfully' });
     } catch (err) {
