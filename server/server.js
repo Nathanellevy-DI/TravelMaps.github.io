@@ -14,6 +14,7 @@ const multer = require('multer');
 const pool = require('./database');
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Supabase Client for Storage
@@ -22,6 +23,65 @@ const supabaseKey = process.env.SUPABASE_KEY || 'sb_publishable_feY3ssoaZMKtXcNq
 const supabase = createClient(supabaseUrl, supabaseKey, {
     realtime: { transport: WebSocket }
 });
+
+async function sendInvitationEmail(toEmail) {
+    const host = process.env.EMAIL_HOST;
+    const port = process.env.EMAIL_PORT || 465;
+    const user = process.env.EMAIL_USER;
+    const pass = process.env.EMAIL_PASS;
+    const from = process.env.EMAIL_FROM || `"TravelMaps" <${user}>`;
+
+    if (!user || !pass || !host) {
+        console.warn('SMTP credentials not configured in environment. Skipping email dispatch.');
+        return;
+    }
+
+    const transporter = nodemailer.createTransport({
+        host,
+        port: parseInt(port),
+        secure: parseInt(port) === 465,
+        auth: { user, pass }
+    });
+
+    const mailOptions = {
+        from,
+        to: toEmail,
+        subject: 'You have been invited to join TravelMaps!',
+        html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1a202c; line-height: 1.6;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="background-color: #2E7D32; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; margin: 0 auto;">
+                        <span style="font-size: 32px; color: #ffffff;">🗺️</span>
+                    </div>
+                    <h2 style="color: #2E7D32; font-size: 24px; margin-top: 16px; margin-bottom: 8px;">Welcome to TravelMaps!</h2>
+                    <p style="color: #718096; font-size: 14px; margin: 0;">Your window to documenting and sharing journeys.</p>
+                </div>
+                
+                <p style="font-size: 16px; margin-bottom: 16px;">Hello,</p>
+                <p style="font-size: 16px; margin-bottom: 24px;">Good news! Your email request on our waitlist has been approved. You are now officially invited to join TravelMaps.</p>
+                
+                <div style="text-align: center; margin: 32px 0;">
+                    <a href="https://travelmaps.world/?register=true" style="background-color: #2E7D32; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px -1px rgba(46, 125, 50, 0.2);">
+                        Create Your Account
+                    </a>
+                </div>
+                
+                <p style="font-size: 14px; color: #718096; margin-bottom: 24px; text-align: center;">
+                    If the button doesn't work, copy and paste this link in your browser:<br/>
+                    <a href="https://travelmaps.world/?register=true" style="color: #3182ce; text-decoration: underline;">https://travelmaps.world/?register=true</a>
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
+                <p style="font-size: 12px; color: #a0aec0; text-align: center; margin: 0;">
+                    This invitation was generated for ${toEmail}. If you did not request to join, please disregard this message.
+                </p>
+            </div>
+        `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(\`Invitation email sent successfully to \${toEmail}\`);
+}
 
 // Media Encryption Setup
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32); // Must be exactly 32 bytes string for aes-256-cbc. Fallback for dev.
@@ -150,11 +210,19 @@ app.post('/api/admin/waitlist/invite', authenticateToken, async (req, res) => {
     }
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
+    
+    const inviteEmail = email.toLowerCase().trim();
     try {
         await pool.query(
             `UPDATE waitlist SET status = 'invited' WHERE email = $1`,
-            [email.toLowerCase().trim()]
+            [inviteEmail]
         );
+
+        // Send email in the background so API stays fast and resilient
+        sendInvitationEmail(inviteEmail).catch(err => {
+            console.error('Failed to send invitation email:', err.message);
+        });
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
