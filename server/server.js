@@ -1,3 +1,7 @@
+// Force IPv4 DNS resolution (Render free tier doesn't support IPv6)
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
