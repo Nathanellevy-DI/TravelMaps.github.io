@@ -397,6 +397,16 @@ app.get('/api/places', authenticateToken, async (req, res) => {
     }
 });
 
+app.get('/api/places/:id', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(`SELECT * FROM places WHERE id = $1`, [req.params.id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Place not found' });
+        res.json(rows[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/places', authenticateToken, async (req, res) => {
     const place = req.body;
     try {

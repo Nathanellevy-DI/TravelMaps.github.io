@@ -213,6 +213,51 @@ export function PlacesProvider({ children, user }) {
         setCategory(name);
     };
 
+    /**
+     * Ensures a locally-created place exists on the backend.
+     * If the place doesn't exist in PostgreSQL (returns 404 on GET),
+     * it POSTs the full place object to create it.
+     * This handles places created offline or before the backend was set up.
+     */
+    const ensurePlaceOnBackend = async (placeId) => {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('travelmaps_token');
+        if (!token) return;
+
+        const place = savedPlaces.find(p => p.id === placeId);
+        if (!place) return;
+
+        try {
+            // Check if place exists on backend
+            const checkRes = await fetch(`${apiUrl}/api/places/${placeId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (checkRes.status === 404) {
+                // Place doesn't exist on backend — create it
+                await fetch(`${apiUrl}/api/places`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        id: place.id,
+                        lat: place.lat,
+                        lon: place.lon,
+                        name: place.name,
+                        formatted: place.formatted || '',
+                        category: place.category || 'Default',
+                        color: place.color || '#3ea6ff',
+                        visibility: place.visibility || 'private'
+                    })
+                });
+                console.log('Auto-synced place to backend:', placeId);
+            }
+        } catch (err) {
+            console.error('Failed to ensure place on backend:', err);
+        }
+    };
+
     const addPlace = async (place, overrideVisibility) => {
         const isShabbat = creationSettings.category === 'Shabbat Dinners' ||
             creationSettings.category === 'Lone Soldier Shabbat Dinners';
@@ -307,12 +352,13 @@ export function PlacesProvider({ children, user }) {
             console.error(err);
         }
 
-        // Save to backend
+        // Save to backend (auto-create place if missing)
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
             if (token) {
-                await fetch(`${apiUrl}/api/places/${placeId}`, {
+                await ensurePlaceOnBackend(placeId);
+                const response = await fetch(`${apiUrl}/api/places/${placeId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -320,9 +366,14 @@ export function PlacesProvider({ children, user }) {
                     },
                     body: JSON.stringify({ visibility: newVisibility })
                 });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || 'Update failed');
+                }
             }
         } catch (error) {
             console.error('Failed to update place visibility on backend:', error);
+            throw error;
         }
     };
 
@@ -401,11 +452,12 @@ export function PlacesProvider({ children, user }) {
             console.error(err);
         }
 
-        // Sync to backend
+        // Sync to backend (auto-create place if missing)
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
             if (token) {
+                await ensurePlaceOnBackend(placeId);
                 const response = await fetch(`${apiUrl}/api/places/${placeId}`, {
                     method: 'PUT',
                     headers: {
@@ -415,7 +467,7 @@ export function PlacesProvider({ children, user }) {
                     body: JSON.stringify(updates)
                 });
                 if (!response.ok) {
-                    const err = await response.json();
+                    const err = await response.json().catch(() => ({}));
                     throw new Error(err.error || 'Update failed');
                 }
             }
@@ -532,6 +584,9 @@ export function PlacesProvider({ children, user }) {
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
+            
+            // Ensure the place exists on the backend before uploading media
+            await ensurePlaceOnBackend(placeId);
             
             const formData = new FormData();
             formData.append('media', file);
