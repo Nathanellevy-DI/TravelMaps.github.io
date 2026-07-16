@@ -18,8 +18,12 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Supabase Client for Storage
-const supabaseUrl = process.env.SUPABASE_URL || 'https://ufzsywuiohxmlmatkamo.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || 'sb_publishable_feY3ssoaZMKtXcNqbZ1GrQ_o59UPHZK';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+if (!supabaseUrl || !supabaseKey) {
+    console.error('FATAL: SUPABASE_URL and SUPABASE_KEY environment variables are required.');
+    process.exit(1);
+}
 const supabase = createClient(supabaseUrl, supabaseKey, {
     realtime: { transport: WebSocket }
 });
@@ -138,7 +142,11 @@ async function sendInvitationEmail(toEmail) {
 }
 
 // Media Encryption Setup
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32); // Must be exactly 32 bytes string for aes-256-cbc. Fallback for dev.
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+    console.error('FATAL: ENCRYPTION_KEY environment variable must be exactly 32 characters.');
+    process.exit(1);
+}
 
 const fs = require('fs');
 const path = require('path');
@@ -167,7 +175,11 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_travelmaps_key_123';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is required.');
+    process.exit(1);
+}
 
 // Auth Middleware
 function authenticateToken(req, res, next) {

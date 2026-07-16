@@ -5,10 +5,17 @@ This document contains a comprehensive summary of all architectural updates, fea
 ---
 
 ## 🔑 Environment & Third-Party Keys
-* **Resend API Key:** `re_M7qWwnoT_6RAqw6q4MDAGM3BDQkbM7iXr`
+* **Resend API Key:** Set as `RESEND_API_KEY` env var on Render (do NOT commit to repo)
 * **Resend Sender Email (Sandbox):** `"TravelMaps" <onboarding@resend.dev>`
 * **Production Domain:** `https://www.travelmaps.world`
 * **Secret Registration Bypass URL:** `https://www.travelmaps.world/#/secret-signup` (automatically applies invite code `TravelMapsVIP` to let invited users register instantly).
+* **Required Server Env Vars (set on Render dashboard):**
+  * `SUPABASE_URL` — Supabase project URL
+  * `SUPABASE_KEY` — Supabase service role key
+  * `DATABASE_URL` — PostgreSQL connection string
+  * `ENCRYPTION_KEY` — Exactly 32 characters for AES-256-CBC media encryption
+  * `JWT_SECRET` — Secret for signing auth tokens
+  * `RESEND_API_KEY` — Resend.com API key for invitation emails
 
 ## 🏗️ Deployment Architecture
 * **Frontend:** Hosted on **Vercel** (auto-deploys from `main` branch on GitHub). Domain: `www.travelmaps.world`.
