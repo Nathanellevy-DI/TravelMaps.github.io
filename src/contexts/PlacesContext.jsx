@@ -1,4 +1,4 @@
-git/**
+/**
  * PlacesContext.jsx — IndexedDB Global State for Saved Places & Categories
  */
 
