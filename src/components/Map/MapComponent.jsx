@@ -158,7 +158,7 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                                         </button>
                                     ) : (
                                         <>
-                                            <div className="result-sub" style={{ marginTop: '4px' }}>📸 {place.memories.length} memories</div>
+                                            <div className="result-sub" style={{ marginTop: '4px' }}>📸 {(place.media || place.memories || []).length} memories</div>
                                             <button
                                                 className="primary"
                                                 style={{ marginTop: '8px', width: '100%' }}

@@ -1,25 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { io as socketIO } from 'socket.io-client';
 
 const SocialContext = createContext();
-
-const DEFAULT_MOCK_FRIENDS = [
-    { id: 'f1', display_name: 'Sarah traveler', email: 'sarah@example.com' },
-    { id: 'f2', display_name: 'Explorer John', email: 'john@example.com' }
-];
-
-const DEFAULT_MOCK_NOTIFICATIONS = [
-    {
-        id: 'n1',
-        user_id: '',
-        actor_id: 'f1',
-        type: 'friend_accept',
-        message: 'accepted your friend request.',
-        is_read: false,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        actor: { display_name: 'Sarah traveler' }
-    }
-];
 
 export function SocialProvider({ children }) {
     const { user } = useAuth();
@@ -70,6 +53,19 @@ export function SocialProvider({ children }) {
             setPendingRequests([]);
             setNotifications([]);
         }
+    }, [user, loadSocialData]);
+
+    // Socket.IO real-time sync for friends and notifications
+    useEffect(() => {
+        if (!user) return;
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const userId = typeof user === 'object' ? user.id : user;
+        const socket = socketIO(apiUrl, { query: { userId }, transports: ['websocket', 'polling'] });
+
+        socket.on('friends_update', () => { loadSocialData(); });
+        socket.on('notification_update', () => { loadSocialData(); });
+
+        return () => { socket.disconnect(); };
     }, [user, loadSocialData]);
 
     const sendFriendRequest = async (emailOrName) => {

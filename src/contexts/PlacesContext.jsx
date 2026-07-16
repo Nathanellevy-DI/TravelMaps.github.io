@@ -1,11 +1,12 @@
-/**
+git/**
  * PlacesContext.jsx — IndexedDB Global State for Saved Places & Categories
  */
 
-import { createContext, useState, useEffect, useContext, useRef, useMemo, Fragment } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useMemo, Fragment, useCallback } from 'react';
 import { useDialog } from '../hooks/useDialog.jsx';
 import { useAuth } from './AuthContext';
 import { getUserData, saveUserData } from '../utils/db';
+import { io as socketIO } from 'socket.io-client';
 
 const PlacesContext = createContext();
 
@@ -20,9 +21,7 @@ const CATEGORY_COLORS = {
     'Stadiums': '#00d2d3',
     'Concert Halls': '#fd79a8',
     'Homes': '#2e86de',
-    'Wishlist': '#8395a7',
-    'Shabbat Dinners': '#f1c40f',
-    'Lone Soldier Shabbat Dinners': '#10ac84'
+    'Wishlist': '#8395a7'
 };
 
 const stringToColor = (str) => {
@@ -50,9 +49,29 @@ export function PlacesProvider({ children, user }) {
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
     const [isLoaded, setIsLoaded] = useState(false);
     const loadingRef = useRef(false);
+    const socketRef = useRef(null);
 
     // Get the unique username key for IndexedDB
     const userIdKey = user ? (typeof user === 'object' ? user.id : user) : 'guest';
+
+    // Normalize a server place object to have consistent field names
+    const normalizePlaces = (serverPlaces) => {
+        return serverPlaces.map(p => {
+            const isOwnPlace = p.user_id === userIdKey;
+            // Normalize media items: alias mime_type → type for frontend components
+            const normalizedMedia = (p.media || []).map(m => ({
+                ...m,
+                type: m.mime_type || m.type
+            }));
+            return {
+                ...p,
+                media: normalizedMedia,
+                memories: normalizedMedia, // backward compat alias
+                isShared: !isOwnPlace,
+                sharedBy: !isOwnPlace ? { username: p.profile?.display_name || 'Friend' } : null
+            };
+        });
+    };
 
     const fetchPlaces = async () => {
         if (!user) return;
@@ -96,14 +115,7 @@ export function PlacesProvider({ children, user }) {
                         });
                         if (refetchRes.ok) {
                             const updatedServerPlaces = await refetchRes.json();
-                            const formattedPlaces = updatedServerPlaces.map(p => {
-                                const isOwnPlace = p.user_id === userIdKey;
-                                return {
-                                    ...p,
-                                    isShared: !isOwnPlace,
-                                    sharedBy: !isOwnPlace ? { username: p.profile?.display_name || 'Friend' } : null
-                                };
-                            });
+                            const formattedPlaces = normalizePlaces(updatedServerPlaces);
                             setSavedPlaces(formattedPlaces);
                             await saveUserData(userIdKey, { ...localData, savedPlaces: formattedPlaces });
                             setIsLoaded(true);
@@ -111,14 +123,7 @@ export function PlacesProvider({ children, user }) {
                         }
                     }
 
-                    const formattedPlaces = serverPlaces.map(p => {
-                        const isOwnPlace = p.user_id === userIdKey;
-                        return {
-                            ...p,
-                            isShared: !isOwnPlace,
-                            sharedBy: !isOwnPlace ? { username: p.profile?.display_name || 'Friend' } : null
-                        };
-                    });
+                    const formattedPlaces = normalizePlaces(serverPlaces);
                     setSavedPlaces(formattedPlaces);
                     
                     // Cache to IndexedDB for offline access
@@ -157,6 +162,28 @@ export function PlacesProvider({ children, user }) {
         fetchPlaces().finally(() => {
             loadingRef.current = false;
         });
+    }, [user]);
+
+    // Socket.IO real-time sync: listen for places_update events from any device
+    useEffect(() => {
+        if (!user) return;
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const userId = typeof user === 'object' ? user.id : user;
+        const socket = socketIO(apiUrl, { query: { userId }, transports: ['websocket', 'polling'] });
+        socketRef.current = socket;
+
+        socket.on('places_update', () => {
+            // Debounce: avoid rapid refetches
+            if (!loadingRef.current) {
+                loadingRef.current = true;
+                fetchPlaces().finally(() => { loadingRef.current = false; });
+            }
+        });
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
     }, [user]);
 
     const [creationSettings, setCreationSettings] = useState({
@@ -204,6 +231,7 @@ export function PlacesProvider({ children, user }) {
             color: creationSettings.color,
             visibility,
             memories: place.memories || [],
+            media: place.media || [],
             requests: [],
             approvalStatus: isShabbat ? 'none' : 'approved'
         };
@@ -338,6 +366,63 @@ export function PlacesProvider({ children, user }) {
         } catch (err) {
             console.error(err);
         }
+
+        // Sync to backend
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                await fetch(`${apiUrl}/api/places/${placeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ category: newCategory, color: newColor })
+                });
+            }
+        } catch (error) {
+            console.error('Failed to sync category to backend:', error);
+        }
+    };
+
+    /**
+     * Generic place update — updates any whitelisted field on the backend.
+     * Used for notes, youtube_url, collaborative, etc.
+     */
+    const updatePlace = async (placeId, updates) => {
+        // Update locally
+        const updatedPlaces = savedPlaces.map(p => p.id === placeId ? { ...p, ...updates } : p);
+        setSavedPlaces(updatedPlaces);
+        try {
+            const localData = await getUserData(userIdKey) || { categories: DEFAULT_CATEGORIES };
+            await saveUserData(userIdKey, { ...localData, savedPlaces: updatedPlaces });
+        } catch (err) {
+            console.error(err);
+        }
+
+        // Sync to backend
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                const response = await fetch(`${apiUrl}/api/places/${placeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(updates)
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Update failed');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to update place on backend:', error);
+            throw error;
+        }
     };
 
     const clearAll = async () => {
@@ -443,7 +528,7 @@ export function PlacesProvider({ children, user }) {
         }
     };
 
-    const uploadMedia = async (placeId, file, tier) => {
+    const uploadMedia = async (placeId, file, tier, sharedWith = []) => {
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
@@ -452,6 +537,7 @@ export function PlacesProvider({ children, user }) {
             formData.append('media', file);
             formData.append('placeId', placeId);
             formData.append('tier', tier);
+            formData.append('sharedWith', JSON.stringify(sharedWith));
 
             const response = await fetch(`${apiUrl}/api/media/upload`, {
                 method: 'POST',
@@ -462,8 +548,8 @@ export function PlacesProvider({ children, user }) {
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Failed to upload file');
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Upload failed (${response.status})`);
             }
 
             const result = await response.json();
@@ -503,6 +589,7 @@ export function PlacesProvider({ children, user }) {
                 setCategory,
                 updatePlaceCategory,
                 updateVisibility,
+                updatePlace,
                 clearAll,
                 restoreData,
                 submitRequest,

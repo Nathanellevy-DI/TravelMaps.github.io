@@ -127,6 +127,11 @@ function initDB() {
             // Add name column to media if it doesn't exist
             await pool.query(`ALTER TABLE media ADD COLUMN IF NOT EXISTS name TEXT;`);
 
+            // Add notes, youtube_url, and collaborative columns to places
+            await pool.query(`ALTER TABLE places ADD COLUMN IF NOT EXISTS notes TEXT;`);
+            await pool.query(`ALTER TABLE places ADD COLUMN IF NOT EXISTS youtube_url TEXT;`);
+            await pool.query(`ALTER TABLE places ADD COLUMN IF NOT EXISTS collaborative BOOLEAN DEFAULT false;`);
+
             console.log('PostgreSQL tables verified.');
         } catch (err) {
             console.error('Error creating tables:', err);

@@ -196,7 +196,7 @@ export default function Sidebar({ isOpen, onClose, map, theme, toggleTheme, user
                                         </span>
                                     </div>
                                     <div className="saved-sub">
-                                        {place.formatted || `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`} • {place.memories.length} memories
+                                        {place.formatted || `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`} • {(place.media || place.memories || []).length} memories
                                         {place.isShared && (
                                             <div style={{ color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <Users size={10} /> Shared by {place.sharedBy?.username || 'Friend'}

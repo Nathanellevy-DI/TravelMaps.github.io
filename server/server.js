@@ -374,7 +374,7 @@ app.get('/api/places', authenticateToken, async (req, res) => {
         let mediaRows = [];
         if (placeIds.length > 0) {
             const { rows: mr } = await pool.query(
-                `SELECT id, place_id, tier, uploader_id, mime_type FROM media WHERE place_id = ANY($1)`,
+                `SELECT id, place_id, tier, uploader_id, mime_type, name, created_at FROM media WHERE place_id = ANY($1)`,
                 [placeIds]
             );
             mediaRows = mr;
@@ -427,24 +427,66 @@ app.delete('/api/places/:id', authenticateToken, async (req, res) => {
 
 app.put('/api/places/:id', authenticateToken, async (req, res) => {
     const updates = req.body;
-    let query = 'UPDATE places SET ';
-    let values = [];
-    let setClauses = [];
-    
-    let index = 1;
-    Object.keys(updates).forEach(key => {
-        setClauses.push(`${key} = $${index++}`);
-        let val = updates[key];
-        if (typeof val === 'object') val = JSON.stringify(val);
-        values.push(val);
-    });
-    
-    if (setClauses.length === 0) return res.json({ success: true });
-    
-    query += setClauses.join(', ') + ` WHERE id = $${index++} AND user_id = $${index}`;
-    values.push(req.params.id, req.user.id);
-    
+    const placeId = req.params.id;
+    const userId = req.user.id;
+
+    // Whitelist of columns that can be updated
+    const ALLOWED_COLUMNS = ['name', 'formatted', 'category', 'color', 'visibility', 'notes', 'youtube_url', 'collaborative'];
+    // Subset allowed for collaborative editors (non-owners with view access)
+    const COLLAB_ALLOWED_COLUMNS = ['notes'];
+
     try {
+        // Check ownership first
+        const { rows: placeRows } = await pool.query(`SELECT * FROM places WHERE id = $1`, [placeId]);
+        const place = placeRows[0];
+        if (!place) return res.status(404).json({ error: 'Place not found' });
+
+        const isOwner = place.user_id === userId;
+        let allowedCols = ALLOWED_COLUMNS;
+
+        if (!isOwner) {
+            // Non-owner: only allowed if the place is collaborative AND user has view access
+            if (!place.collaborative) {
+                return res.status(403).json({ error: 'You do not have permission to edit this place.' });
+            }
+            // Check view access
+            const viewQuery = `
+                SELECT 1 FROM places p WHERE p.id = $1 AND (
+                    p.visibility = 'public'
+                    OR p.visibility = $2
+                    OR (p.visibility = 'friends' AND p.user_id IN (
+                        SELECT user_id_2 FROM friends WHERE user_id_1 = $2 AND status = 'accepted'
+                        UNION
+                        SELECT user_id_1 FROM friends WHERE user_id_2 = $2 AND status = 'accepted'
+                    ))
+                )
+            `;
+            const { rows: viewRows } = await pool.query(viewQuery, [placeId, userId]);
+            if (viewRows.length === 0) {
+                return res.status(403).json({ error: 'You do not have permission to edit this place.' });
+            }
+            allowedCols = COLLAB_ALLOWED_COLUMNS;
+        }
+
+        // Build SET clause from whitelisted columns only
+        let setClauses = [];
+        let values = [];
+        let index = 1;
+
+        Object.keys(updates).forEach(key => {
+            if (allowedCols.includes(key)) {
+                setClauses.push(`${key} = $${index++}`);
+                let val = updates[key];
+                if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+                values.push(val);
+            }
+        });
+
+        if (setClauses.length === 0) return res.json({ success: true });
+
+        const query = `UPDATE places SET ${setClauses.join(', ')} WHERE id = $${index}`;
+        values.push(placeId);
+
         await pool.query(query, values);
         io.emit('places_update');
         res.json({ success: true });
@@ -575,6 +617,41 @@ app.post('/api/media/upload', authenticateToken, upload.single('media'), async (
     
     const { placeId, tier, sharedWith } = req.body; 
     const parsedTier = parseInt(tier) || 1;
+
+    // Collaborative authorization check: if place exists and user is not the owner,
+    // only allow upload if the place is collaborative and user has view access.
+    if (placeId) {
+        try {
+            const { rows: placeRows } = await pool.query(`SELECT user_id, collaborative, visibility FROM places WHERE id = $1`, [placeId]);
+            const place = placeRows[0];
+            if (place && place.user_id !== req.user.id) {
+                if (!place.collaborative) {
+                    // Clean up the uploaded temp file
+                    try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch(e) {}
+                    return res.status(403).json({ error: 'You do not have permission to upload to this place.' });
+                }
+                // Verify view access
+                const viewQuery = `
+                    SELECT 1 FROM places p WHERE p.id = $1 AND (
+                        p.visibility = 'public'
+                        OR p.visibility = $2
+                        OR (p.visibility = 'friends' AND p.user_id IN (
+                            SELECT user_id_2 FROM friends WHERE user_id_1 = $2 AND status = 'accepted'
+                            UNION
+                            SELECT user_id_1 FROM friends WHERE user_id_2 = $2 AND status = 'accepted'
+                        ))
+                    )
+                `;
+                const { rows: viewRows } = await pool.query(viewQuery, [placeId, req.user.id]);
+                if (viewRows.length === 0) {
+                    try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch(e) {}
+                    return res.status(403).json({ error: 'You do not have permission to upload to this place.' });
+                }
+            }
+        } catch (authErr) {
+            console.error('Collaborative auth check failed:', authErr.message);
+        }
+    }
     
     const mediaId = uuidv4();
     const iv = crypto.randomBytes(16);
@@ -703,7 +780,15 @@ app.delete('/api/media/:media_id', authenticateToken, async (req, res) => {
         const media = rows[0];
         if (!media) return res.status(404).json({ error: 'Media not found' });
         
-        if (media.uploader_id !== req.user.id) {
+        // Allow deletion by: the uploader OR the place owner
+        let canDelete = media.uploader_id === req.user.id;
+        if (!canDelete && media.place_id) {
+            const { rows: placeRows } = await pool.query(`SELECT user_id FROM places WHERE id = $1`, [media.place_id]);
+            if (placeRows[0] && placeRows[0].user_id === req.user.id) {
+                canDelete = true;
+            }
+        }
+        if (!canDelete) {
             return res.status(403).json({ error: 'Unauthorized to delete this media' });
         }
         

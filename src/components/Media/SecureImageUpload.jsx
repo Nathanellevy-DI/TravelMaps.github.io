@@ -36,6 +36,7 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
 
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
+    const [status, setStatus] = useState('');
     const fileInputRef = useRef(null);
 
     // Clean up timer on unmount
@@ -212,6 +213,7 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
 
         setIsUploading(true);
         setError('');
+        setStatus('');
         
         try {
             if (uploadType === 'note') {
@@ -219,10 +221,11 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
             } else {
                 let fileToUpload = file;
                 if (file.type.startsWith('image/')) {
-                    setError('Compressing image to optimize upload speed...');
+                    setStatus('Compressing image...');
                     fileToUpload = await compressImage(file);
+                    setStatus('Uploading...');
                 }
-                await uploadMedia(placeId, fileToUpload, tier);
+                await uploadMedia(placeId, fileToUpload, tier, sharedWith);
             }
             
             // Reset states on success
@@ -231,13 +234,15 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
             setNoteText('');
             setSharedWith([]);
             setTier(1);
+            setStatus('');
             if (onUploadSuccess) onUploadSuccess();
             
         } catch (err) {
             console.error('Upload error', err);
-            setError('Save failed. Please try again.');
+            setError(err.message || 'Save failed. Please try again.');
         } finally {
             setIsUploading(false);
+            setStatus('');
         }
     };
 
@@ -444,6 +449,12 @@ export default function SecureImageUpload({ placeId, onUploadSuccess }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ff6961', fontSize: '0.85rem' }}>
                             <AlertCircle size={14} />
                             <span>{error}</span>
+                        </div>
+                    )}
+
+                    {status && !error && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontSize: '0.85rem' }}>
+                            <span>⏳ {status}</span>
                         </div>
                     )}
 

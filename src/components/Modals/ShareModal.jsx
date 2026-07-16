@@ -16,10 +16,11 @@ import { usePlaces } from '../../contexts/PlacesContext';
 import { useSocial } from '../../contexts/SocialContext';
 
 export default function ShareModal({ isOpen, onClose, type, item }) {
-    const { updateVisibility } = usePlaces();
+    const { updateVisibility, updatePlace } = usePlaces();
     const { friends } = useSocial();
     const [sharing, setSharing] = useState(false);
     const [selectedVisibility, setSelectedVisibility] = useState(item?.visibility || 'private');
+    const [isCollaborative, setIsCollaborative] = useState(item?.collaborative || false);
 
     const handleShare = async () => {
         if (!item?.id) return;
@@ -27,6 +28,8 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
         setSharing(true);
         try {
             await updateVisibility(item.id, selectedVisibility);
+            // Also update the collaborative flag
+            await updatePlace(item.id, { collaborative: isCollaborative });
             alert(`Place visibility updated!`);
             onClose();
         } catch (err) {
@@ -161,11 +164,39 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                         </div>
                     )}
 
+                    {/* Collaborative toggle — only show when sharing with someone */}
+                    {selectedVisibility !== 'private' && (
+                        <div
+                            onClick={() => setIsCollaborative(!isCollaborative)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '12px',
+                                padding: '12px 14px', marginBottom: '16px',
+                                border: isCollaborative ? '1px solid #f39c12' : '1px solid var(--border)',
+                                background: isCollaborative ? 'rgba(243, 156, 18, 0.08)' : 'transparent',
+                                borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            <div style={{
+                                width: '20px', height: '20px', borderRadius: '4px', border: '2px solid',
+                                borderColor: isCollaborative ? '#f39c12' : 'var(--muted)',
+                                background: isCollaborative ? '#f39c12' : 'transparent',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'white', fontSize: '14px', fontWeight: 700, flexShrink: 0
+                            }}>
+                                {isCollaborative ? '✓' : ''}
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 600, fontSize: '14px' }}>Collaborative Pin</div>
+                                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Recipients can add photos, notes, and media</div>
+                            </div>
+                        </div>
+                    )}
+
                     <button
                         className="primary"
                         style={{ width: '100%', justifyContent: 'center' }}
                         onClick={handleShare}
-                        disabled={sharing || selectedVisibility === item?.visibility}
+                        disabled={sharing || (selectedVisibility === item?.visibility && isCollaborative === (item?.collaborative || false))}
                     >
                         {getButtonText()}
                     </button>
