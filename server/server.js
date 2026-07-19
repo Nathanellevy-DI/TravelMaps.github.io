@@ -556,6 +556,14 @@ app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     try {
+        // Ensure userId exists in PostgreSQL users table
+        await pool.query(
+            `INSERT INTO users (id, email, password, display_name)
+             VALUES ($1, $2, 'NO_PASSWORD_HASH', $3)
+             ON CONFLICT (id) DO NOTHING`,
+            [userId, req.user?.email || `${userId}@travelmaps.world`, req.user?.name || 'User']
+        );
+
         let placeRes = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
         
         // If place is missing on backend, auto-create/upsert it if place details were provided
@@ -586,13 +594,23 @@ app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
 
             await pool.query('DELETE FROM pin_shares WHERE place_id = $1', [id]);
             if (visibility === 'specific' && sharedWithUserIds.length > 0) {
-                const insertQueries = sharedWithUserIds.map(uid =>
-                    pool.query(
-                        `INSERT INTO pin_shares (place_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [id, uid]
-                    )
-                );
-                await Promise.all(insertQueries);
+                for (const uid of sharedWithUserIds) {
+                    try {
+                        // Ensure target friend exists in users table before adding to pin_shares
+                        await pool.query(
+                            `INSERT INTO users (id, email, password, display_name)
+                             VALUES ($1, $2, 'NO_PASSWORD_HASH', $3)
+                             ON CONFLICT (id) DO NOTHING`,
+                            [uid, `${uid}@travelmaps.world`, 'Friend User']
+                        );
+                        await pool.query(
+                            `INSERT INTO pin_shares (place_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                            [id, uid]
+                        );
+                    } catch (shareErr) {
+                        console.warn(`Pin share warning for user ${uid}:`, shareErr.message);
+                    }
+                }
             }
             await pool.query('COMMIT');
             io.emit('places_update');

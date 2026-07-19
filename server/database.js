@@ -170,7 +170,15 @@ function initDB() {
                 );
             `);
 
-            // 3. Add shared_group_id to places
+            // 3. Drop restrictive foreign key constraints so local/offline user IDs never fail writes
+            try {
+                await pool.query(`ALTER TABLE places DROP CONSTRAINT IF EXISTS places_user_id_fkey;`);
+                await pool.query(`ALTER TABLE pin_shares DROP CONSTRAINT IF EXISTS pin_shares_user_id_fkey;`);
+            } catch (fkErr) {
+                console.log('Foreign key drop info:', fkErr.message);
+            }
+
+            // 4. Add shared_group_id to places
             await pool.query(`
                 ALTER TABLE places ADD COLUMN IF NOT EXISTS shared_group_id TEXT REFERENCES groups(id) ON DELETE SET NULL;
             `);
