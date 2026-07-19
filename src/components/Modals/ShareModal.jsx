@@ -132,7 +132,7 @@ export default function ShareModal({ isOpen, onClose, type, item }) {
                 sharedWithUserIds: selectedFriendIds,
                 groupId: selectedGroupId || null,
                 collaborative: isCollaborative
-            });
+            }, item);
             alert('Place sharing preferences updated!');
             onClose();
         } catch (err) {

@@ -1,8 +1,8 @@
-const CACHE_NAME = 'travelmaps-v4';
-const APP_VERSION = 2; // Increment when adding new features - TEST
+const CACHE_NAME = 'travelmaps-v5';
+const APP_VERSION = 5;
 const urlsToCache = [
-    '/TravelMaps.github.io/',
-    '/TravelMaps.github.io/index.html'
+    '/',
+    '/index.html'
 ];
 
 // Install service worker and cache essential files

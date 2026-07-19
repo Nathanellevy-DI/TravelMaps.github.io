@@ -214,18 +214,23 @@ export function PlacesProvider({ children, user }) {
         setCategory(name);
     };
 
+    const VALID_VISIBILITIES = ['private', 'friends', 'specific', 'group', 'public'];
+    const sanitizeVisibility = (vis) => VALID_VISIBILITIES.includes(vis) ? vis : 'private';
+
     /**
      * Ensures a locally-created place exists on the backend.
      * If the place doesn't exist in PostgreSQL (returns 404 on GET),
      * it POSTs the full place object to create it.
      * This handles places created offline or before the backend was set up.
      */
-    const ensurePlaceOnBackend = async (placeId) => {
+    const ensurePlaceOnBackend = async (placeId, fallbackPlace = null) => {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
         const token = localStorage.getItem('travelmaps_token');
         if (!token) return;
 
-        const place = savedPlaces.find(p => p.id === placeId);
+        const place = savedPlaces.find(p => p.id === placeId) || 
+                      visiblePlaces.find(p => p.id === placeId) || 
+                      fallbackPlace;
         if (!place) return;
 
         try {
@@ -235,7 +240,8 @@ export function PlacesProvider({ children, user }) {
             });
             if (checkRes.status === 404) {
                 // Place doesn't exist on backend — create it
-                await fetch(`${apiUrl}/api/places`, {
+                const validVis = sanitizeVisibility(place.visibility);
+                const createRes = await fetch(`${apiUrl}/api/places`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -245,14 +251,19 @@ export function PlacesProvider({ children, user }) {
                         id: place.id,
                         lat: place.lat,
                         lon: place.lon,
-                        name: place.name,
+                        name: place.name || place.title || 'Pinned Location',
                         formatted: place.formatted || '',
                         category: place.category || 'Default',
                         color: place.color || '#3ea6ff',
-                        visibility: place.visibility || 'private'
+                        visibility: validVis
                     })
                 });
-                console.log('Auto-synced place to backend:', placeId);
+                if (createRes.ok) {
+                    console.log('Auto-synced place to backend:', placeId);
+                } else {
+                    const err = await createRes.json().catch(() => ({}));
+                    console.error('Failed to auto-create place on backend:', err);
+                }
             }
         } catch (err) {
             console.error('Failed to ensure place on backend:', err);
@@ -264,7 +275,7 @@ export function PlacesProvider({ children, user }) {
             creationSettings.category === 'Lone Soldier Shabbat Dinners';
 
         const placeId = 'p_' + Date.now();
-        const visibility = overrideVisibility || creationSettings.visibility;
+        const visibility = sanitizeVisibility(overrideVisibility || creationSettings.visibility);
         
         const newPlace = {
             id: placeId,
@@ -653,12 +664,12 @@ export function PlacesProvider({ children, user }) {
         return [];
     };
 
-    const sharePlace = async (placeId, { visibility, sharedWithUserIds = [], groupId = null, collaborative = false }) => {
+    const sharePlace = async (placeId, { visibility, sharedWithUserIds = [], groupId = null, collaborative = false }, placeObj = null) => {
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
             if (token) {
-                await ensurePlaceOnBackend(placeId);
+                await ensurePlaceOnBackend(placeId, placeObj);
                 await updatePlace(placeId, { collaborative });
 
                 const response = await fetch(`${apiUrl}/api/places/${placeId}/share`, {
