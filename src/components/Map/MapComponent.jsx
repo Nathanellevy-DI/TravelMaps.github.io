@@ -1,17 +1,10 @@
 /**
  * MapComponent.jsx — Main Interactive Map
  *
- * Renders the Leaflet map with all saved place markers, temporary markers
- * (from search results or map clicks), and handles map click events.
- * Uses react-leaflet for declarative map rendering within React.
- *
- * Key features:
- *   - Custom colored SVG pin icons for each place category
- *   - Dark/light tile layer switching based on the current theme
- *   - Popup details on each marker with "View Details" or "Save Location" actions
- *   - Temporary marker for search results and clicked locations before saving
+ * Renders the Leaflet map with all visible place markers (own, shared, and public discovery),
+ * temporary markers, and handles viewport-based proximity discovery.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { usePlaces } from '../../contexts/PlacesContext';
 import 'leaflet/dist/leaflet.css';
@@ -19,10 +12,6 @@ import L from 'leaflet';
 
 /**
  * Creates a Leaflet DivIcon with a custom-colored SVG map pin.
- * Each category has its own color, making pins visually distinguishable on the map.
- *
- * @param {string} color — Hex color string (e.g. '#3ea6ff') for the pin fill
- * @returns {L.DivIcon} — A Leaflet DivIcon with the colored SVG pin
  */
 const createCustomIcon = (color) => {
     const svgString = `
@@ -36,27 +25,26 @@ const createCustomIcon = (color) => {
         className: 'custom-map-icon',
         html: `<div style="width:30px;height:30px;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.4))">${svgString}</div>`,
         iconSize: [30, 30],
-        iconAnchor: [15, 30], // Tip of pin is at bottom center (15px right, 30px down)
+        iconAnchor: [15, 30],
         popupAnchor: [0, -32]
     });
 };
 
 /**
  * MapEvents — Invisible component that hooks into Leaflet's map events.
- * Captures click events on the map background and forwards them to the parent
- * handler (`onMapClick`) so a temporary pin can be placed.
- * Also handles flying to the user's location on initial load.
- *
- * @param {Object} props
- * @param {Function} props.onMapClick — Callback receiving Leaflet's click event object
  */
-function MapEvents({ onMapClick }) {
+function MapEvents({ onMapClick, onViewportChange }) {
     const map = useMapEvents({
         click(e) {
             onMapClick(e);
         },
+        moveend() {
+            const center = map.getCenter();
+            onViewportChange(center.lat, center.lng);
+        },
         locationfound(e) {
             map.setView(e.latlng, 13);
+            onViewportChange(e.latlng.lat, e.latlng.lng);
         },
         locationerror(e) {
             console.warn('Geolocation failed or denied:', e.message);
@@ -67,36 +55,85 @@ function MapEvents({ onMapClick }) {
         map.locate({ setView: true, maxZoom: 13 });
     }, [map]);
 
-    return null; // This component renders nothing; it only subscribes to events
+    return null;
 }
 
-/**
- * MapComponent — The full-screen interactive map.
- *
- * @param {Object}   props
- * @param {Function} props.mapRef       — Ref callback to capture the Leaflet Map instance
- * @param {Function} props.onMapClick   — Handler for clicks on the map background
- * @param {Object|null} props.tempMarker — Temporary marker data (search/click) before saving
- * @param {string}   props.theme        — 'dark' or 'light'; controls which tile layer is shown
- */
 export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) {
-    // Pull saved places and creation settings from the global PlacesContext
-    const { savedPlaces, setActivePlaceId, creationSettings } = usePlaces();
+    const { savedPlaces, visiblePlaces, fetchVisiblePlaces, setActivePlaceId, creationSettings } = usePlaces();
+    
+    // Viewport and discovery radius states
+    const [center, setCenter] = useState(null);
+    const [radius, setRadius] = useState(25); // default 25km radius
 
-    /**
-     * Dispatches a custom DOM event to open the PlaceDetailsModal for a given place.
-     * This cross-component communication pattern avoids deep prop drilling.
-     */
+    // Keep track of the active places to display
+    const placesToRender = visiblePlaces.length > 0 ? visiblePlaces : savedPlaces;
+
+    // Load visible places when center or radius changes
+    useEffect(() => {
+        if (!center) return;
+        const isEverywhere = radius === 'Everywhere';
+        fetchVisiblePlaces(
+            isEverywhere ? null : center.lat,
+            isEverywhere ? null : center.lng,
+            isEverywhere ? 99999 : radius
+        );
+    }, [center, radius]);
+
     const handleOpenDetails = (placeId) => {
         document.dispatchEvent(new CustomEvent('openDetails', { detail: placeId }));
     };
 
+    const onViewportChange = (lat, lng) => {
+        setCenter({ lat, lng });
+    };
+
+    const radiusOptions = [
+        { label: '5 km', value: 5 },
+        { label: '25 km', value: 25 },
+        { label: '100 km', value: 100 },
+        { label: 'Everywhere', value: 'Everywhere' }
+    ];
+
     return (
-        <div id="map" className="map">
-            {/* MapContainer initializes the Leaflet map instance.
-                center: default view is Jerusalem (lat 31.7683, lon 35.2137)
-                maxBounds: prevents scrolling beyond the world edges
-                ref: passes the map instance up to the parent via mapRef callback */}
+        <div id="map" className="map" style={{ position: 'relative', height: '100%', width: '100%' }}>
+            {/* Discovery Radius Controller (Absolute overlay) */}
+            <div className="radius-control-bar" style={{
+                position: 'absolute',
+                top: '12px',
+                left: '50px',
+                zIndex: 1000,
+                display: 'flex',
+                gap: '6px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                backdropFilter: 'blur(8px)',
+                padding: '5px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+                {radiusOptions.map(opt => {
+                    const isActive = radius === opt.value;
+                    return (
+                        <button
+                            key={opt.label}
+                            onClick={() => setRadius(opt.value)}
+                            style={{
+                                border: 'none',
+                                background: isActive ? 'var(--accent, #3ea6ff)' : 'transparent',
+                                color: isActive ? '#ffffff' : '#94a3b8',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
+
             <MapContainer
                 center={[31.7683, 35.2137]}
                 zoom={13}
@@ -108,9 +145,6 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                 ref={mapRef}
                 zoomControl={false}
             >
-                {/* TileLayer provides the visual map tiles from CartoCDB.
-                    The 'key' prop forces a re-mount when the theme changes,
-                    swapping between the dark and light tile sets. */}
                 <TileLayer
                     key={theme}
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -121,17 +155,19 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                     maxZoom={19}
                 />
 
-                {/* MapEvents listens for click events on the map background */}
-                <MapEvents onMapClick={onMapClick} />
+                <MapEvents onMapClick={onMapClick} onViewportChange={onViewportChange} />
 
-                {/* Render a colored marker for each saved place */}
-                {savedPlaces.map(place => {
+                {placesToRender.map(place => {
                     const isShabbat = place.category === 'Shabbat Dinners' || place.category === 'Lone Soldier Shabbat Dinners';
+                    
+                    // Render markers at fuzzed display coordinates for other users' public pins
+                    const markerLat = place.isShared ? (place.display_lat || place.lat) : place.lat;
+                    const markerLon = place.isShared ? (place.display_lon || place.lon) : place.lon;
 
                     return (
                         <Marker
                             key={place.id}
-                            position={[place.lat, place.lon]}
+                            position={[markerLat, markerLon]}
                             icon={createCustomIcon(place.color || '#3ea6ff')}
                             eventHandlers={{
                                 click: () => setActivePlaceId(place.id)
@@ -174,13 +210,9 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                     );
                 })}
 
-                {/* Temporary Marker — shown when a user searches or clicks the map.
-                    Uses the currently-selected category color so the user sees
-                    what the pin will look like before saving. */}
                 {tempMarker && (
                     <Marker
                         position={[tempMarker.lat, tempMarker.lon]}
-                        // Use the globally selected color for the temp marker!
                         icon={createCustomIcon(creationSettings.color)}
                     >
                         <Popup offset={[0, -10]}>
@@ -202,7 +234,6 @@ export default function MapComponent({ mapRef, onMapClick, tempMarker, theme }) 
                         </Popup>
                     </Marker>
                 )}
-
             </MapContainer>
         </div>
     );

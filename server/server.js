@@ -360,7 +360,102 @@ app.post('/api/admin/waitlist/resend-invite', authenticateToken, async (req, res
     }
 });
 
+// --- Friendship Helpers ---
+async function areFriends(pool, uidA, uidB) {
+    const { rows } = await pool.query(
+        `SELECT status FROM friends 
+         WHERE ((user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $2 AND user_id_2 = $1))`,
+        [uidA, uidB]
+    );
+    return rows[0]?.status === 'accepted';
+}
+
+async function friendshipStatus(pool, uidA, uidB) {
+    const { rows } = await pool.query(
+        `SELECT status, action_user_id FROM friends 
+         WHERE ((user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $2 AND user_id_2 = $1))`,
+        [uidA, uidB]
+    );
+    return rows[0] ?? null;
+}
+
 // --- Places Routes ---
+
+// GET /api/places/visible?lat=..&lon=..&radiusKm=25
+app.get('/api/places/visible', authenticateToken, async (req, res) => {
+    const viewerId = req.user.id;
+    const radiusM = (parseFloat(req.query.radiusKm) || 25) * 1000;
+    const lat = req.query.lat ? parseFloat(req.query.lat) : null;
+    const lon = req.query.lon ? parseFloat(req.query.lon) : null;
+
+    try {
+        const query = `
+            SELECT DISTINCT p.*,
+                u.display_name AS owner_name, u.avatar_url AS owner_avatar,
+                CASE
+                    WHEN p.visibility = 'public' AND p.user_id <> $1
+                    THEN ROUND(p.lat::numeric, 3)
+                    ELSE p.lat
+                END AS display_lat,
+                CASE
+                    WHEN p.visibility = 'public' AND p.user_id <> $1
+                    THEN ROUND(p.lon::numeric, 3)
+                    ELSE p.lon
+                END AS display_lon
+            FROM places p
+            LEFT JOIN users u ON p.user_id = u.id
+            LEFT JOIN pin_shares ps
+                ON ps.place_id = p.id AND ps.user_id = $1
+            LEFT JOIN group_members gm
+                ON gm.group_id = p.shared_group_id AND gm.user_id = $1
+            LEFT JOIN friends f
+                ON ((f.user_id_1 = $1 AND f.user_id_2 = p.user_id) OR (f.user_id_1 = p.user_id AND f.user_id_2 = $1))
+                AND f.status = 'accepted'
+            WHERE
+                p.user_id = $1
+                OR (p.visibility = 'specific' AND ps.user_id IS NOT NULL)
+                OR (p.visibility = 'group' AND gm.user_id IS NOT NULL)
+                OR (p.visibility = 'friends' AND f.status = 'accepted')
+                OR (
+                    p.visibility = 'public'
+                    AND (
+                        ($2::real IS NULL OR $3::real IS NULL)
+                        OR earth_distance(ll_to_earth(p.lat, p.lon), ll_to_earth($2, $3)) <= $4
+                    )
+                )
+        `;
+
+        const { rows } = await pool.query(query, [viewerId, lat, lon, radiusM]);
+        
+        // Fetch media for returned visible places
+        const placeIds = rows.map(r => r.id);
+        let mediaRows = [];
+        if (placeIds.length > 0) {
+            const { rows: mr } = await pool.query(
+                `SELECT id, place_id, tier, uploader_id, mime_type, name, created_at FROM media WHERE place_id = ANY($1)`,
+                [placeIds]
+            );
+            mediaRows = mr;
+        }
+
+        const mediaByPlace = {};
+        mediaRows.forEach(m => {
+            if (!mediaByPlace[m.place_id]) mediaByPlace[m.place_id] = [];
+            mediaByPlace[m.place_id].push(m);
+        });
+
+        const visiblePlaces = rows.map(r => ({
+            ...r,
+            media: mediaByPlace[r.id] || [],
+            profile: { display_name: r.owner_name, email: r.email }
+        }));
+
+        res.json(visiblePlaces);
+    } catch (err) {
+        console.error('Error fetching visible places:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.get('/api/places', authenticateToken, async (req, res) => {
     const userId = req.user.id;
@@ -411,11 +506,67 @@ app.get('/api/places', authenticateToken, async (req, res) => {
 
 app.get('/api/places/:id', authenticateToken, async (req, res) => {
     try {
-        const { rows } = await pool.query(`SELECT * FROM places WHERE id = $1`, [req.params.id]);
+        const { rows } = await pool.query(
+            `SELECT p.*, u.display_name AS owner_name, u.avatar_url AS owner_avatar
+             FROM places p
+             JOIN users u ON u.id = p.user_id
+             WHERE p.id = $1`,
+            [req.params.id]
+        );
         if (rows.length === 0) return res.status(404).json({ error: 'Place not found' });
-        res.json(rows[0]);
+        
+        const friendship = await friendshipStatus(pool, req.user.id, rows[0].user_id);
+        
+        // Fetch specific shares if visibility is 'specific'
+        let sharedWithUserIds = [];
+        if (rows[0].visibility === 'specific') {
+            const sharesRes = await pool.query(`SELECT user_id FROM pin_shares WHERE place_id = $1`, [req.params.id]);
+            sharedWithUserIds = sharesRes.rows.map(r => r.user_id);
+        }
+        
+        res.json({ ...rows[0], friendship, sharedWithUserIds });
     } catch (err) {
         return res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/places/:id/share
+app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { visibility, sharedWithUserIds = [], groupId = null } = req.body;
+    const userId = req.user.id;
+
+    try {
+        const place = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
+        if (place.rows.length === 0) return res.status(404).json({ error: 'Place not found' });
+        if (place.rows[0].user_id !== userId) return res.status(403).json({ error: 'Not your pin' });
+
+        await pool.query('BEGIN');
+        try {
+            await pool.query(
+                `UPDATE places SET visibility = $1, shared_group_id = $2 WHERE id = $3`,
+                [visibility, visibility === 'group' ? groupId : null, id]
+            );
+
+            await pool.query('DELETE FROM pin_shares WHERE place_id = $1', [id]);
+            if (visibility === 'specific' && sharedWithUserIds.length > 0) {
+                const insertQueries = sharedWithUserIds.map(uid =>
+                    pool.query(
+                        `INSERT INTO pin_shares (place_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [id, uid]
+                    )
+                );
+                await Promise.all(insertQueries);
+            }
+            await pool.query('COMMIT');
+            io.emit('places_update');
+            res.json({ success: true });
+        } catch (err) {
+            await pool.query('ROLLBACK');
+            throw err;
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -629,6 +780,123 @@ app.post('/api/friends/respond', authenticateToken, async (req, res) => {
         }
     } catch (err) {
         return res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/friends/request-by-id
+app.post('/api/friends/request-by-id', authenticateToken, async (req, res) => {
+    const { targetUserId } = req.body;
+    const userId = req.user.id;
+    if (userId === targetUserId) {
+        return res.status(400).json({ error: 'Cannot friend yourself' });
+    }
+    try {
+        const [u1, u2] = [userId, targetUserId].sort();
+        const fid = `f_${Date.now()}`;
+        await pool.query(
+            `INSERT INTO friends (id, user_id_1, user_id_2, status, action_user_id)
+             VALUES ($1, $2, $3, 'pending', $4)
+             ON CONFLICT (user_id_1, user_id_2) DO NOTHING`,
+            [fid, u1, u2, userId]
+        );
+
+        // Notify target
+        const nid = uuidv4();
+        await pool.query(
+            `INSERT INTO notifications (id, user_id, actor_id, type, message) 
+             VALUES ($1, $2, $3, 'friend_request', 'sent you a friend request.')`,
+            [nid, targetUserId, userId]
+        );
+
+        io.to(targetUserId).emit('notification_update');
+        io.to(targetUserId).emit('friends_update');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Groups Routes ---
+
+// POST /api/groups   body: { name, memberUserIds: [] }
+app.post('/api/groups', authenticateToken, async (req, res) => {
+    const { name, memberUserIds = [] } = req.body;
+    const ownerId = req.user.id;
+    const groupId = 'g_' + uuidv4();
+
+    try {
+        await pool.query('BEGIN');
+        try {
+            // 1. Create group
+            await pool.query(
+                `INSERT INTO groups (id, owner_id, name) VALUES ($1, $2, $3)`,
+                [groupId, ownerId, name]
+            );
+
+            // 2. Add owner as member
+            await pool.query(
+                `INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)`,
+                [groupId, ownerId]
+            );
+
+            // 3. Add other members
+            if (memberUserIds.length > 0) {
+                const insertQueries = memberUserIds.map(uid => 
+                    pool.query(
+                        `INSERT INTO group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [groupId, uid]
+                    )
+                );
+                await Promise.all(insertQueries);
+            }
+
+            await pool.query('COMMIT');
+            res.json({ success: true, groupId, name });
+        } catch (err) {
+            await pool.query('ROLLBACK');
+            throw err;
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/groups
+app.get('/api/groups', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const { rows } = await pool.query(
+            `SELECT DISTINCT g.* 
+             FROM groups g
+             JOIN group_members gm ON g.id = gm.group_id
+             WHERE g.owner_id = $1 OR gm.user_id = $2
+             ORDER BY g.created_at DESC`,
+            [userId, userId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/groups/:id/members   body: { userId }
+app.post('/api/groups/:id/members', authenticateToken, async (req, res) => {
+    const groupId = req.params.id;
+    const { userId } = req.body;
+    const requesterId = req.user.id;
+
+    try {
+        const { rows } = await pool.query(`SELECT owner_id FROM groups WHERE id = $1`, [groupId]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+        if (rows[0].owner_id !== requesterId) return res.status(403).json({ error: 'Only group owners can add members' });
+
+        await pool.query(
+            `INSERT INTO group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [groupId, userId]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

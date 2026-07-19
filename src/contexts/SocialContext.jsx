@@ -143,12 +143,40 @@ export function SocialProvider({ children }) {
         }
     };
 
+    const sendFriendRequestById = async (targetUserId) => {
+        if (!user) return { error: 'Not authenticated' };
+        
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            const response = await fetch(`${apiUrl}/api/friends/request-by-id`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ targetUserId })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to send friend request');
+            }
+
+            await loadSocialData(); // Refresh local list
+            return { success: true };
+        } catch (error) {
+            return { error: error.message };
+        }
+    };
+
     const value = {
         friends,
         pendingRequests,
         notifications,
         isLoading,
         sendFriendRequest,
+        sendFriendRequestById,
         respondToRequest,
         markNotificationRead,
         refresh: loadSocialData

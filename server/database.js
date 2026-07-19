@@ -132,6 +132,88 @@ function initDB() {
             await pool.query(`ALTER TABLE places ADD COLUMN IF NOT EXISTS youtube_url TEXT;`);
             await pool.query(`ALTER TABLE places ADD COLUMN IF NOT EXISTS collaborative BOOLEAN DEFAULT false;`);
 
+            // --- Pin Sharing & Discovery (v2) Migrations ---
+            console.log('Running v2 Pin Sharing & Discovery migrations...');
+            
+            // 1. Enable radius search extensions (may require superuser, catch if not allowed)
+            try {
+                await pool.query(`CREATE EXTENSION IF NOT EXISTS cube CASCADE;`);
+                await pool.query(`CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;`);
+                console.log('Extensions cube and earthdistance verified.');
+            } catch (extErr) {
+                console.log('Proximity extensions info (extensions may already exist or need superuser):', extErr.message);
+            }
+
+            // 2. Create new tables
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS groups (
+                    id TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS group_members (
+                    group_id TEXT REFERENCES groups(id) ON DELETE CASCADE,
+                    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                    PRIMARY KEY (group_id, user_id)
+                );
+            `);
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS pin_shares (
+                    place_id TEXT REFERENCES places(id) ON DELETE CASCADE,
+                    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                    PRIMARY KEY (place_id, user_id)
+                );
+            `);
+
+            // 3. Add shared_group_id to places
+            await pool.query(`
+                ALTER TABLE places ADD COLUMN IF NOT EXISTS shared_group_id TEXT REFERENCES groups(id) ON DELETE SET NULL;
+            `);
+
+            // 4. Migrate legacy visibility values (single UUIDs) into pin_shares
+            // A UUID or user ID doesn't equal private, friends, public, group, specific.
+            try {
+                // Find places with legacy visibility and copy to pin_shares
+                await pool.query(`
+                    INSERT INTO pin_shares (place_id, user_id)
+                    SELECT id, visibility
+                    FROM places
+                    WHERE visibility NOT IN ('private', 'friends', 'public', 'specific', 'group')
+                    ON CONFLICT DO NOTHING;
+                `);
+
+                // Update places with legacy visibility to 'specific'
+                await pool.query(`
+                    UPDATE places
+                    SET visibility = 'specific'
+                    WHERE visibility NOT IN ('private', 'friends', 'public', 'specific', 'group');
+                `);
+                console.log('Legacy visibility values migrated.');
+            } catch (migErr) {
+                console.error('Error during visibility values migration:', migErr.message);
+            }
+
+            // 5. Add check constraint to visibility column if it doesn't exist
+            try {
+                const constraintCheck = await pool.query(`
+                    SELECT 1 FROM pg_constraint WHERE conname = 'visibility_check'
+                `);
+                if (constraintCheck.rows.length === 0) {
+                    await pool.query(`
+                        ALTER TABLE places ADD CONSTRAINT visibility_check
+                        CHECK (visibility IN ('private', 'friends', 'specific', 'group', 'public'))
+                    `);
+                    console.log('Constraint visibility_check added.');
+                }
+            } catch (constraintErr) {
+                console.error('Error adding visibility_check constraint:', constraintErr.message);
+            }
+
             console.log('PostgreSQL tables verified.');
         } catch (err) {
             console.error('Error creating tables:', err);

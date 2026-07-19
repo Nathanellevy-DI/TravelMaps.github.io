@@ -46,6 +46,7 @@ export function PlacesProvider({ children, user }) {
     const { showConfirm, DialogComponent } = useDialog();
 
     const [savedPlaces, setSavedPlaces] = useState([]);
+    const [visiblePlaces, setVisiblePlaces] = useState([]);
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
     const [isLoaded, setIsLoaded] = useState(false);
     const loadingRef = useRef(false);
@@ -626,10 +627,70 @@ export function PlacesProvider({ children, user }) {
         }
     };
 
+    const fetchVisiblePlaces = async (lat, lon, radiusKm = 25) => {
+        if (!user) return [];
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                let url = `${apiUrl}/api/places/visible?radiusKm=${radiusKm}`;
+                if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+                    url += `&lat=${lat}&lon=${lon}`;
+                }
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const formatted = normalizePlaces(data);
+                    setVisiblePlaces(formatted);
+                    return formatted;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch visible places:', err);
+        }
+        return [];
+    };
+
+    const sharePlace = async (placeId, { visibility, sharedWithUserIds = [], groupId = null, collaborative = false }) => {
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const token = localStorage.getItem('travelmaps_token');
+            if (token) {
+                await ensurePlaceOnBackend(placeId);
+                await updatePlace(placeId, { collaborative });
+
+                const response = await fetch(`${apiUrl}/api/places/${placeId}/share`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || 'Share failed');
+                }
+                
+                // Refresh local places
+                await fetchPlaces();
+            }
+        } catch (err) {
+            console.error('Error sharing place:', err);
+            throw err;
+        }
+    };
+
     return (
         <Fragment>
             <PlacesContext.Provider value={{
                 savedPlaces,
+                visiblePlaces,
+                fetchVisiblePlaces,
+                sharePlace,
                 addPlace,
                 removePlace,
                 activePlaceId,
