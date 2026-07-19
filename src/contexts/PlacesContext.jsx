@@ -6,6 +6,7 @@ import { createContext, useState, useEffect, useContext, useRef, useMemo, Fragme
 import { useDialog } from '../hooks/useDialog.jsx';
 import { useAuth } from './AuthContext';
 import { getUserData, saveUserData } from '../utils/db';
+import { exportSinglePinZip, importSinglePinZip } from '../utils/backup';
 import { io as socketIO } from 'socket.io-client';
 
 const PlacesContext = createContext();
@@ -669,7 +670,19 @@ export function PlacesProvider({ children, user }) {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const token = localStorage.getItem('travelmaps_token');
             if (token) {
-                await ensurePlaceOnBackend(placeId, placeObj);
+                const targetPlace = placeObj || savedPlaces.find(p => p.id === placeId);
+                
+                // Zip pin details, notes, and memories in the background using backup zip format
+                let zipBlob = null;
+                if (targetPlace) {
+                    try {
+                        zipBlob = await exportSinglePinZip(targetPlace);
+                    } catch (zipErr) {
+                        console.warn('Background pin zipping warning:', zipErr);
+                    }
+                }
+
+                await ensurePlaceOnBackend(placeId, targetPlace);
 
                 const response = await fetch(`${apiUrl}/api/places/${placeId}/share`, {
                     method: 'POST',
@@ -677,7 +690,7 @@ export function PlacesProvider({ children, user }) {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId, collaborative, place: placeObj })
+                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId, collaborative, place: targetPlace })
                 });
 
                 if (!response.ok) {

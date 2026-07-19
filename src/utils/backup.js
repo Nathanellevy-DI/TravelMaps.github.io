@@ -125,3 +125,79 @@ export async function importBackup(file) {
         };
     }
 }
+
+/**
+ * Zip a single pin object (with memories and photos) into a ZIP Blob for sharing
+ */
+export async function exportSinglePinZip(place) {
+    const zip = new JSZip();
+
+    const pinPackage = {
+        version: 1,
+        createdDate: new Date().toISOString(),
+        place: {
+            ...place,
+            memories: (place.memories || []).map(mem => ({
+                ...mem,
+                photoFile: mem.photo ? `photos/${mem.id}.jpg` : null
+            }))
+        }
+    };
+
+    zip.file('pin_data.json', JSON.stringify(pinPackage, null, 2));
+
+    const photosFolder = zip.folder('photos');
+    if (place.memories) {
+        for (const memory of place.memories) {
+            if (memory.photo && memory.photo.startsWith('data:')) {
+                const base64Data = memory.photo.split(',')[1];
+                if (base64Data) {
+                    photosFolder.file(`${memory.id}.jpg`, base64Data, { base64: true });
+                }
+            }
+        }
+    }
+
+    return await zip.generateAsync({ type: 'blob' });
+}
+
+/**
+ * Unpack a single pin ZIP Blob/Buffer into a full place object
+ */
+export async function importSinglePinZip(zipData) {
+    try {
+        const zip = await JSZip.loadAsync(zipData);
+        const dataFile = zip.file('pin_data.json');
+        if (!dataFile) {
+            throw new Error('Invalid pin package: missing pin_data.json');
+        }
+
+        const dataContent = await dataFile.async('string');
+        const pinPackage = JSON.parse(dataContent);
+        const place = pinPackage.place;
+
+        if (place.memories) {
+            place.memories = await Promise.all(
+                place.memories.map(async (memory) => {
+                    if (memory.photoFile) {
+                        const photoFile = zip.file(memory.photoFile);
+                        if (photoFile) {
+                            const photoData = await photoFile.async('base64');
+                            return {
+                                ...memory,
+                                photo: `data:image/jpeg;base64,${photoData}`,
+                                photoFile: undefined
+                            };
+                        }
+                    }
+                    return { ...memory, photoFile: undefined };
+                })
+            );
+        }
+
+        return { success: true, place };
+    } catch (err) {
+        console.error('Failed to unpack pin ZIP:', err);
+        return { success: false, error: err.message };
+    }
+}
