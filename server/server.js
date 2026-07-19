@@ -456,25 +456,24 @@ app.get('/api/places/visible', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 app.get('/api/places', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
         const query = `
-            SELECT p.*, u.display_name as username, u.email 
+            SELECT DISTINCT p.*, u.display_name as username, u.email 
             FROM places p
             LEFT JOIN users u ON p.user_id = u.id
+            LEFT JOIN pin_shares ps ON ps.place_id = p.id AND ps.user_id = $1
+            LEFT JOIN group_members gm ON gm.group_id = p.shared_group_id AND gm.user_id = $1
+            LEFT JOIN friends f ON ((f.user_id_1 = $1 AND f.user_id_2 = p.user_id) OR (f.user_id_1 = p.user_id AND f.user_id_2 = $1)) AND f.status = 'accepted'
             WHERE p.user_id = $1 
                OR p.visibility = 'public'
-               OR (p.visibility = 'friends' AND p.user_id IN (
-                   SELECT user_id_2 FROM friends WHERE user_id_1 = $2 AND status = 'accepted'
-                   UNION
-                   SELECT user_id_1 FROM friends WHERE user_id_2 = $3 AND status = 'accepted'
-               ))
-               OR p.visibility = $4
+               OR (p.visibility = 'friends' AND f.status = 'accepted')
+               OR (p.visibility = 'specific' AND ps.user_id IS NOT NULL)
+               OR (p.visibility = 'group' AND gm.user_id IS NOT NULL)
             ORDER BY p.created_at DESC
         `;
-        const { rows } = await pool.query(query, [userId, userId, userId, userId]);
+        const { rows } = await pool.query(query, [userId]);
         
         // Only fetch media for the places we're actually returning (not the entire table)
         const placeIds = rows.map(r => r.id);
@@ -533,7 +532,7 @@ app.get('/api/places/:id', authenticateToken, async (req, res) => {
 // POST /api/places/:id/share
 app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { visibility, sharedWithUserIds = [], groupId = null, place = null } = req.body;
+    const { visibility, sharedWithUserIds = [], groupId = null, collaborative = false, place = null } = req.body;
     const userId = req.user.id;
 
     try {
@@ -543,14 +542,14 @@ app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
         if (placeRes.rows.length === 0 && place) {
             const validVis = ['private', 'friends', 'specific', 'group', 'public'].includes(visibility) ? visibility : 'private';
             await pool.query(
-                `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                 ON CONFLICT (id) DO UPDATE SET visibility = EXCLUDED.visibility`,
+                `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility, collaborative)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 ON CONFLICT (id) DO UPDATE SET visibility = EXCLUDED.visibility, collaborative = EXCLUDED.collaborative`,
                 [
                     id, userId, place.lat || 0, place.lon || 0, 
                     place.name || place.title || 'Pinned Location', 
                     place.formatted || '', place.category || 'Default', 
-                    place.color || '#3ea6ff', validVis
+                    place.color || '#3ea6ff', validVis, collaborative || false
                 ]
             );
             placeRes = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
@@ -561,8 +560,8 @@ app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
         await pool.query('BEGIN');
         try {
             await pool.query(
-                `UPDATE places SET visibility = $1, shared_group_id = $2, user_id = $3 WHERE id = $4`,
-                [visibility, visibility === 'group' ? groupId : null, userId, id]
+                `UPDATE places SET visibility = $1, shared_group_id = $2, user_id = $3, collaborative = $4 WHERE id = $5`,
+                [visibility, visibility === 'group' ? groupId : null, userId, collaborative || false, id]
             );
 
             await pool.query('DELETE FROM pin_shares WHERE place_id = $1', [id]);
@@ -592,8 +591,8 @@ app.post('/api/places', authenticateToken, async (req, res) => {
     const validVis = ['private', 'friends', 'specific', 'group', 'public'].includes(place.visibility) ? place.visibility : 'private';
     try {
         await pool.query(
-            `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility, notes, youtube_url, collaborative)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              ON CONFLICT (id) DO UPDATE SET
                lat = EXCLUDED.lat,
                lon = EXCLUDED.lon,
@@ -601,10 +600,13 @@ app.post('/api/places', authenticateToken, async (req, res) => {
                formatted = EXCLUDED.formatted,
                category = EXCLUDED.category,
                color = EXCLUDED.color,
-               visibility = EXCLUDED.visibility`,
+               visibility = EXCLUDED.visibility,
+               notes = COALESCE(EXCLUDED.notes, places.notes),
+               youtube_url = COALESCE(EXCLUDED.youtube_url, places.youtube_url),
+               collaborative = COALESCE(EXCLUDED.collaborative, places.collaborative)`,
             [
                 place.id, req.user.id, place.lat, place.lon, place.name || 'Pinned Location', place.formatted || '',
-                place.category || 'Default', place.color || '#3ea6ff', validVis
+                place.category || 'Default', place.color || '#3ea6ff', validVis, place.notes || null, place.youtube_url || null, place.collaborative || false
             ]
         );
         io.emit('places_update');
@@ -650,14 +652,15 @@ app.put('/api/places/:id', authenticateToken, async (req, res) => {
             }
             // Check view access
             const viewQuery = `
-                SELECT 1 FROM places p WHERE p.id = $1 AND (
+                SELECT 1 FROM places p
+                LEFT JOIN pin_shares ps ON ps.place_id = p.id AND ps.user_id = $2
+                LEFT JOIN group_members gm ON gm.group_id = p.shared_group_id AND gm.user_id = $2
+                LEFT JOIN friends f ON ((f.user_id_1 = $2 AND f.user_id_2 = p.user_id) OR (f.user_id_1 = p.user_id AND f.user_id_2 = $2)) AND f.status = 'accepted'
+                WHERE p.id = $1 AND (
                     p.visibility = 'public'
-                    OR p.visibility = $2
-                    OR (p.visibility = 'friends' AND p.user_id IN (
-                        SELECT user_id_2 FROM friends WHERE user_id_1 = $2 AND status = 'accepted'
-                        UNION
-                        SELECT user_id_1 FROM friends WHERE user_id_2 = $2 AND status = 'accepted'
-                    ))
+                    OR (p.visibility = 'friends' AND f.status = 'accepted')
+                    OR (p.visibility = 'specific' AND ps.user_id IS NOT NULL)
+                    OR (p.visibility = 'group' AND gm.user_id IS NOT NULL)
                 )
             `;
             const { rows: viewRows } = await pool.query(viewQuery, [placeId, userId]);

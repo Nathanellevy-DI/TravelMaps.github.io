@@ -670,7 +670,6 @@ export function PlacesProvider({ children, user }) {
             const token = localStorage.getItem('travelmaps_token');
             if (token) {
                 await ensurePlaceOnBackend(placeId, placeObj);
-                await updatePlace(placeId, { collaborative });
 
                 const response = await fetch(`${apiUrl}/api/places/${placeId}/share`, {
                     method: 'POST',
@@ -678,7 +677,7 @@ export function PlacesProvider({ children, user }) {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId, place: placeObj })
+                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId, collaborative, place: placeObj })
                 });
 
                 if (!response.ok) {
