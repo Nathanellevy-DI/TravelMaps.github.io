@@ -189,9 +189,23 @@ function authenticateToken(req, res, next) {
     
     if (!token) return res.sendStatus(401);
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwt.verify(token, JWT_SECRET, async (err, user) => {
         if (err) return res.sendStatus(403);
         req.user = user;
+
+        // Auto-ensure user exists in PostgreSQL users table so foreign key constraints never fail
+        if (user && user.id) {
+            try {
+                await pool.query(
+                    `INSERT INTO users (id, email, password, display_name)
+                     VALUES ($1, $2, 'NO_PASSWORD_HASH', $3)
+                     ON CONFLICT (id) DO NOTHING`,
+                    [user.id, user.email || `${user.id}@travelmaps.world`, user.name || user.display_name || 'User']
+                );
+            } catch (syncErr) {
+                // Ignore silent duplicate/sync errors
+            }
+        }
         next();
     });
 }
