@@ -678,7 +678,7 @@ export function PlacesProvider({ children, user }) {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId })
+                    body: JSON.stringify({ visibility, sharedWithUserIds, groupId, place: placeObj })
                 });
 
                 if (!response.ok) {

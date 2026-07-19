@@ -509,7 +509,7 @@ app.get('/api/places/:id', authenticateToken, async (req, res) => {
         const { rows } = await pool.query(
             `SELECT p.*, u.display_name AS owner_name, u.avatar_url AS owner_avatar
              FROM places p
-             JOIN users u ON u.id = p.user_id
+             LEFT JOIN users u ON u.id = p.user_id
              WHERE p.id = $1`,
             [req.params.id]
         );
@@ -533,19 +533,36 @@ app.get('/api/places/:id', authenticateToken, async (req, res) => {
 // POST /api/places/:id/share
 app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { visibility, sharedWithUserIds = [], groupId = null } = req.body;
+    const { visibility, sharedWithUserIds = [], groupId = null, place = null } = req.body;
     const userId = req.user.id;
 
     try {
-        const place = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
-        if (place.rows.length === 0) return res.status(404).json({ error: 'Place not found' });
-        if (place.rows[0].user_id !== userId) return res.status(403).json({ error: 'Not your pin' });
+        let placeRes = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
+        
+        // If place is missing on backend, auto-create/upsert it if place details were provided
+        if (placeRes.rows.length === 0 && place) {
+            const validVis = ['private', 'friends', 'specific', 'group', 'public'].includes(visibility) ? visibility : 'private';
+            await pool.query(
+                `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 ON CONFLICT (id) DO UPDATE SET visibility = EXCLUDED.visibility`,
+                [
+                    id, userId, place.lat || 0, place.lon || 0, 
+                    place.name || place.title || 'Pinned Location', 
+                    place.formatted || '', place.category || 'Default', 
+                    place.color || '#3ea6ff', validVis
+                ]
+            );
+            placeRes = await pool.query('SELECT user_id FROM places WHERE id = $1', [id]);
+        }
+
+        if (placeRes.rows.length === 0) return res.status(404).json({ error: 'Place not found' });
 
         await pool.query('BEGIN');
         try {
             await pool.query(
-                `UPDATE places SET visibility = $1, shared_group_id = $2 WHERE id = $3`,
-                [visibility, visibility === 'group' ? groupId : null, id]
+                `UPDATE places SET visibility = $1, shared_group_id = $2, user_id = $3 WHERE id = $4`,
+                [visibility, visibility === 'group' ? groupId : null, userId, id]
             );
 
             await pool.query('DELETE FROM pin_shares WHERE place_id = $1', [id]);
@@ -572,13 +589,22 @@ app.post('/api/places/:id/share', authenticateToken, async (req, res) => {
 
 app.post('/api/places', authenticateToken, async (req, res) => {
     const place = req.body;
+    const validVis = ['private', 'friends', 'specific', 'group', 'public'].includes(place.visibility) ? place.visibility : 'private';
     try {
         await pool.query(
             `INSERT INTO places (id, user_id, lat, lon, name, formatted, category, color, visibility)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (id) DO UPDATE SET
+               lat = EXCLUDED.lat,
+               lon = EXCLUDED.lon,
+               name = EXCLUDED.name,
+               formatted = EXCLUDED.formatted,
+               category = EXCLUDED.category,
+               color = EXCLUDED.color,
+               visibility = EXCLUDED.visibility`,
             [
-                place.id, req.user.id, place.lat, place.lon, place.name, place.formatted,
-                place.category, place.color, place.visibility
+                place.id, req.user.id, place.lat, place.lon, place.name || 'Pinned Location', place.formatted || '',
+                place.category || 'Default', place.color || '#3ea6ff', validVis
             ]
         );
         io.emit('places_update');
