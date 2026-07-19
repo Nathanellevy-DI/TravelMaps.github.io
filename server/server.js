@@ -420,7 +420,12 @@ app.get('/api/places/visible', authenticateToken, async (req, res) => {
                     p.visibility = 'public'
                     AND (
                         ($2::real IS NULL OR $3::real IS NULL)
-                        OR earth_distance(ll_to_earth(p.lat, p.lon), ll_to_earth($2, $3)) <= $4
+                        OR (
+                            6371000 * 2 * asin(sqrt(
+                                sin(radians(p.lat - $2) / 2)^2 +
+                                cos(radians($2)) * cos(radians(p.lat)) * sin(radians(p.lon - $3) / 2)^2
+                            )) <= $4
+                        )
                     )
                 )
         `;
